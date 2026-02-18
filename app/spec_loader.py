@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any, Dict
 
 import yaml
-from pydantic import ValidationError
 
 from app.models import GuardianSpec, TransitionSpec
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable, Mapping
+from typing import Iterable, Mapping
 
 
 class CompletenessError(ValueError):
