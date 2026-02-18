@@ -1,0 +1,36 @@
+risk_tiers: [low, medium, high]
+
+entities:
+  Ticket:
+    id:
+      canonical_regex: "^TCKT-[0-9]+$"
+      legacy_regexes:
+        - "^TICKET_[0-9]+$"
+        - "^T-[0-9]+$"
+      examples:
+        - "TCKT-1024"
+        - "TICKET_1024"
+    checklist:
+      - has_title
+      - has_acceptance_criteria
+      - has_risk_tier
+    states: [Draft, Planned, InProgress, ReadyForReview, Done]
+    transitions:
+      - from: Draft
+        to: Planned
+        gate:
+          require_human_approval: true
+          rules:
+            - type: completeness_min
+              percent: 60
+      - from: ReadyForReview
+        to: Done
+        gate:
+          require_human_approval: medium_or_high
+          rules:
+            - type: completeness_min
+              percent: 100
+
+rules:
+  completeness_min:
+    description: "Require entity completeness >= percent"
