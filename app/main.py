@@ -5,9 +5,10 @@ import sys
 from pathlib import Path
 
 from app.engine.completeness import CompletenessEngine
+from app.engine.gates import GateEngine
 from app.engine.identity import IdentityError, IdentityValidator
 from app.spec_loader import load_spec
-
+from app.engine.state_machine import resolve_transition, TransitionError
 
 def usage() -> None:
     print("Commands:")
@@ -20,6 +21,8 @@ def usage() -> None:
         "  python -m app.main completeness Ticket "
         "'{\"has_title\": true, \"has_acceptance_criteria\": false, \"has_risk_tier\": true}'"
     )
+    print("  python -m app.main transition <EntityType> <FromState> <ToState> <risk_tier> '<json>' [--human-approved]")
+
 
 
 def cmd_validate_id(spec_path: Path, entity_type: str, id_value: str) -> int:
@@ -75,6 +78,70 @@ def cmd_completeness(spec_path: Path, entity_type: str, json_payload: str) -> in
             print(f"  - {m}")
     return 0
 
+def cmd_transition(
+    spec_path: Path,
+    entity_type: str,
+    from_state: str,
+    to_state: str,
+    risk_tier: str,
+    json_payload: str,
+    human_approved: bool,
+) -> int:
+    spec = load_spec(spec_path)
+    if entity_type not in spec.entities:
+        print(f"Unknown entity type: {entity_type}. Known: {', '.join(spec.entities.keys())}")
+        return 2
+
+    if risk_tier not in spec.risk_tiers:
+        print(f"Unknown risk tier '{risk_tier}'. Known: {spec.risk_tiers}")
+        return 2
+
+    try:
+        entity_data = json.loads(json_payload)
+    except json.JSONDecodeError as e:
+        print(f"❌ Invalid JSON payload: {e}")
+        return 2
+
+    entity = spec.entities[entity_type]
+
+    try:
+        resolved = resolve_transition(entity, from_state, to_state)
+    except TransitionError as e:
+        print(f"❌ {e}")
+        return 1
+
+    engine = GateEngine()
+    decision = engine.evaluate(
+        checklist=entity.checklist,
+        entity_data=entity_data,
+        rules=resolved.gate.rules,
+        require_human_approval=resolved.gate.require_human_approval,
+        risk_tier=risk_tier,
+        human_approved=human_approved,
+    )
+
+    if decision.allowed:
+        print(f"✅ Transition allowed: {entity_type} {from_state} -> {to_state}")
+        if decision.completeness is not None:
+            c = decision.completeness
+            print(f"Completeness: {c.percent}% ({c.satisfied_items}/{c.total_items})")
+        return 0
+
+    print(f"⛔ Transition blocked: {entity_type} {from_state} -> {to_state}")
+    for r in decision.reasons:
+        print(f"  - {r}")
+
+    if decision.completeness is not None:
+        c = decision.completeness
+        print(f"Completeness: {c.percent}% ({c.satisfied_items}/{c.total_items})")
+        if c.missing_items:
+            print("Missing:")
+            for m in c.missing_items:
+                print(f"  - {m}")
+
+    return 1
+
+
 
 def main() -> int:
     if len(sys.argv) < 2:
@@ -95,6 +162,29 @@ def main() -> int:
             usage()
             return 2
         return cmd_completeness(spec_path, sys.argv[2], sys.argv[3])
+    
+    if cmd == "transition":
+        # transition Ticket Draft Planned medium '{...}' --human-approved
+        if len(sys.argv) < 7:
+            usage()
+            return 2
+
+        entity_type = sys.argv[2]
+        from_state = sys.argv[3]
+        to_state = sys.argv[4]
+        risk_tier = sys.argv[5]
+        json_payload = sys.argv[6]
+        human_approved = "--human-approved" in sys.argv[7:]
+
+        return cmd_transition(
+            spec_path,
+            entity_type,
+            from_state,
+            to_state,
+            risk_tier,
+            json_payload,
+             human_approved, )
+
 
     usage()
     return 2
