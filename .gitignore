@@ -19,3 +19,7 @@ venv/
 
 # Ruff cache
 .ruff_cache/
+
+# Runtime logs
+audit_log.jsonl
+*.jsonl
