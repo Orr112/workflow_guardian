@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 
+from app.engine.audit import AuditLogger, AuditLogEntry
 from app.engine.completeness import CompletenessEngine
 from app.engine.gates import GateEngine
 from app.engine.identity import IdentityError, IdentityValidator
@@ -120,6 +121,23 @@ def cmd_transition(
         human_approved=human_approved,
     )
 
+    # --- Audit Logging ---
+    logger = AuditLogger(Path("audit_log.jsonl"))
+    entry = AuditLogEntry(
+        timestamp=AuditLogger.now_iso(),
+        entity_type=entity_type,
+        from_state=from_state,
+        to_state=to_state,
+        risk_tier=risk_tier,
+        human_approved=human_approved,
+        allowed=decision.allowed,
+        reasons=decision.reasons,
+        completeness_percent=decision.completeness.percent
+        if decision.completeness
+        else None
+        )
+    logger.log(entry)
+
     if decision.allowed:
         print(f"✅ Transition allowed: {entity_type} {from_state} -> {to_state}")
         if decision.completeness is not None:
@@ -175,6 +193,7 @@ def main() -> int:
         risk_tier = sys.argv[5]
         json_payload = sys.argv[6]
         human_approved = "--human-approved" in sys.argv[7:]
+
 
         return cmd_transition(
             spec_path,

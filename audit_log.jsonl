@@ -1,0 +1,1 @@
+{"timestamp": "2026-02-19T03:23:39.426450+00:00", "entity_type": "Ticket", "from_state": "ReadyForReview", "to_state": "Done", "risk_tier": "medium", "human_approved": true, "allowed": true, "reasons": [], "completeness_percent": 100}
