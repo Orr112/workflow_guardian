@@ -10,6 +10,10 @@ from app.engine.gates import GateEngine
 from app.engine.identity import IdentityError, IdentityValidator
 from app.spec_loader import load_spec
 from app.engine.state_machine import resolve_transition, TransitionError
+from app.engine.store import FileEntityStore, EntityRecord, StoreError
+
+STORE_PATH = Path("entities.json")
+
 
 def usage() -> None:
     print("Commands:")
@@ -23,6 +27,73 @@ def usage() -> None:
         "'{\"has_title\": true, \"has_acceptance_criteria\": false, \"has_risk_tier\": true}'"
     )
     print("  python -m app.main transition <EntityType> <FromState> <ToState> <risk_tier> '<json>' [--human-approved]")
+    print("  python -m app.main create <EntityType> <EntityId> <risk_tier> '<json>'")
+    print("  python -m app.main show <EntityType> <EntityId>")
+    print("  python -m app.main apply-transition <EntityType> <EntityId> <ToState> [--human-approved]")
+
+
+def cmd_create(spec_path: Path, entity_type: str, entity_id: str, risk_tier: str, json_payload: str) -> int:
+    spec = load_spec(spec_path)
+    if entity_type not in spec.entities:
+        print(f"Unknown entity type: {entity_type}. Known: {', '.join(spec.entities.keys())}")
+        return 2
+    if risk_tier not in spec.risk_tiers:
+        print(f"Unknown risk tier '{risk_tier}'. Known: {spec.risk_tiers}")
+        return 2
+
+    entity_spec = spec.entities[entity_type]
+
+    try:
+        data = json.loads(json_payload)
+    except json.JSONDecodeError as e:
+        print(f"❌ Invalid JSON payload: {e}")
+        return 2
+
+    # Validate ID
+    validator = IdentityValidator(
+        canonical_regex=entity_spec.id.canonical_regex,
+        legacy_regexes=entity_spec.id.legacy_regexes,
+    )
+    try:
+        id_result = validator.validate(entity_type, entity_id)
+        if id_result.is_legacy:
+            print(f"⚠️ Legacy ID detected, refusing create until normalized: {entity_id}")
+            return 1
+    except IdentityError as e:
+        print(f"❌ {e}")
+        return 1
+
+    store = FileEntityStore(STORE_PATH)
+    existing = store.get(entity_type, entity_id)
+    if existing is not None:
+        print(f"❌ Entity already exists: {entity_type} {entity_id}")
+        return 1
+
+    initial_state = entity_spec.states[0]
+    rec = EntityRecord(
+        entity_type=entity_type,
+        entity_id=entity_id,
+        risk_tier=risk_tier,
+        state=initial_state,
+        data=data,
+    )
+    store.upsert(rec)
+    print(f"✅ Created {entity_type} {entity_id} in state {initial_state}")
+    return 0
+
+
+def cmd_show(spec_path: Path, entity_type: str, entity_id: str) -> int:
+    store = FileEntityStore(STORE_PATH)
+    rec = store.get(entity_type, entity_id)
+    if rec is None:
+        print(f"❌ Not found: {entity_type} {entity_id}")
+        return 1
+    
+    print(f"{rec.entity_type} {rec.entity_id}")
+    print(f"Risk: {rec.risk_tier}")
+    print(f"State: {rec.state}")
+    print(json.dumps(rec.data, indent=2, sort_keys=True))
+    return 0
 
 
 
@@ -160,6 +231,73 @@ def cmd_transition(
     return 1
 
 
+def cmd_apply_transition(
+    spec_path: Path,
+    entity_type: str,
+    entity_id: str,
+    to_state: str,
+    human_approved: bool,
+) -> int:
+    spec = load_spec(spec_path)
+    if entity_type not in spec.entities:
+        print(f"Unknown entity type: {entity_type}. Known: {', '.join(spec.entities.keys())}")
+        return 2
+
+    store = FileEntityStore(STORE_PATH)
+    try:
+        rec = store.require(entity_type, entity_id)
+    except StoreError as e:
+        print(f"❌ {e}")
+        return 1
+
+    entity_spec = spec.entities[entity_type]
+
+    from_state = rec.state
+    risk_tier = rec.risk_tier
+
+    try:
+        resolved = resolve_transition(entity_spec, from_state, to_state)
+    except TransitionError as e:
+        print(f"❌ {e}")
+        return 1
+
+    engine = GateEngine()
+    decision = engine.evaluate(
+        checklist=entity_spec.checklist,
+        entity_data=rec.data,
+        rules=resolved.gate.rules,
+        require_human_approval=resolved.gate.require_human_approval,
+        risk_tier=risk_tier,
+        human_approved=human_approved,
+    )
+
+    # Audit
+    logger = AuditLogger(Path("audit_log.jsonl"))
+    entry = AuditLogEntry(
+        timestamp=AuditLogger.now_iso(),
+        entity_type=entity_type,
+        from_state=from_state,
+        to_state=to_state,
+        risk_tier=risk_tier,
+        human_approved=human_approved,
+        allowed=decision.allowed,
+        reasons=decision.reasons,
+        completeness_percent=decision.completeness.percent if decision.completeness else None,
+    )
+    logger.log(entry)
+
+    if not decision.allowed:
+        print(f"⛔ Transition blocked: {entity_type} {entity_id} {from_state} -> {to_state}")
+        for r in decision.reasons:
+            print(f"  - {r}")
+        return 1
+
+    # Apply state update
+    rec.state = to_state
+    store.upsert(rec)
+    print(f"✅ Transition applied: {entity_type} {entity_id} {from_state} -> {to_state}")
+    return 0
+
 
 def main() -> int:
     if len(sys.argv) < 2:
@@ -180,6 +318,26 @@ def main() -> int:
             usage()
             return 2
         return cmd_completeness(spec_path, sys.argv[2], sys.argv[3])
+    
+    if cmd == "create":
+        if len(sys.argv) != 6:
+            usage()
+            return 2
+        return cmd_create(spec_path, sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5])
+
+    if cmd == "show":
+        if len(sys.argv) != 4:
+            usage()
+            return 2
+        return cmd_show(spec_path, sys.argv[2], sys.argv[3])
+
+    if cmd == "apply-transition":
+        if len(sys.argv) < 5:
+            usage()
+            return 2
+        human_approved = "--human-approved" in sys.argv[5:]
+        return cmd_apply_transition(spec_path, sys.argv[2], sys.argv[3], sys.argv[4], human_approved)
+
     
     if cmd == "transition":
         # transition Ticket Draft Planned medium '{...}' --human-approved
