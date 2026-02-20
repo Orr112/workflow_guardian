@@ -178,6 +178,7 @@ def cmd_transition(
 
     try:
         resolved = resolve_transition(entity, from_state, to_state)
+        gate = resolved.transition.gate
     except TransitionError as e:
         print(f"❌ {e}")
         return 1
@@ -186,8 +187,8 @@ def cmd_transition(
     decision = engine.evaluate(
         checklist=entity.checklist,
         entity_data=entity_data,
-        rules=resolved.gate.rules,
-        require_human_approval=resolved.gate.require_human_approval,
+        rules=gate.rules,
+        require_human_approval=gate.require_human_approval,
         risk_tier=risk_tier,
         human_approved=human_approved,
     )

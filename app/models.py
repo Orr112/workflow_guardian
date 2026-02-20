@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ConfigDict
 
 class IdSpec(BaseModel):
     canonical_regex: str
@@ -17,17 +17,19 @@ class GateSpec(BaseModel):
     rules: List[GateRule] = []
 
 class TransitionSpec(BaseModel):
-    from_state: str
-    to_state: str
+    from_state: str = Field(alias="from")
+    to_state: str = Field(alias="to")
     gate: GateSpec
+
+    model_config = ConfigDict(populate_by_name=True)
 
 class EntitySpec(BaseModel):
     id: IdSpec
     checklist: List[str]
     states: List[str]
-    transitions: List[Dict[str, Any]]
+    transitions: List[TransitionSpec]
 
 class GuardianSpec(BaseModel):
     risk_tiers: List[str]
     entities: Dict[str, EntitySpec]
-    rules: Dict[str, Dict[str, Any]]
+    rules: Dict[str, Dict[str, Any]] = {}
