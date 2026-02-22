@@ -12,7 +12,25 @@ from app.spec_loader import load_spec
 from app.engine.state_machine import resolve_transition, TransitionError
 from app.engine.store import FileEntityStore, EntityRecord, StoreError
 
+from app.llm.reviewer import review_code
+from app.llm.testgen import generate_tests
+
+
 STORE_PATH = Path("entities.json")
+
+def cmd_ai_review(file_path: str) -> int:
+    code = Path(file_path).read_text(encoding="utf-8")
+    out = review_code(code)
+    print(out)
+    return 0
+
+
+def cmd_ai_testgen(file_path: str) -> int:
+    code = Path(file_path).read_text(encoding="utf-8")
+    out = generate_tests(code)
+    print(out)
+    return 0
+
 
 
 def usage() -> None:
@@ -30,7 +48,8 @@ def usage() -> None:
     print("  python -m app.main create <EntityType> <EntityId> <risk_tier> '<json>'")
     print("  python -m app.main show <EntityType> <EntityId>")
     print("  python -m app.main apply-transition <EntityType> <EntityId> <ToState> [--human-approved]")
-
+    print("  python -m app.main ai-review <path-to_py_file>")
+    print("  python -m app.main ai-testgen <path_to_py_file>")
 
 def cmd_create(spec_path: Path, entity_type: str, entity_id: str, risk_tier: str, json_payload: str) -> int:
     spec = load_spec(spec_path)
@@ -307,6 +326,18 @@ def main() -> int:
 
     spec_path = Path("guardian_spec.yaml")
     cmd = sys.argv[1]
+
+    if cmd == "ai-review":
+        if len(sys.argv) != 3:
+            usage()
+            return 2
+        return cmd_ai_review(sys.argv[2])
+
+    if cmd == "ai-testgen":
+        if len(sys.argv) != 3:
+            usage()
+            return
+        return cmd_ai_testgen(sys.argv[2])
 
     if cmd == "validate-id":
         if len(sys.argv) != 4:
