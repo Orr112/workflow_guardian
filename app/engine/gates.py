@@ -42,6 +42,12 @@ class GateEngine:
         reasons: list[str] = []
         completeness_result: Optional[CompletenessResult] = None
 
+        def get_completeness() -> CompletenessResult:
+            nonlocal completeness_result
+            if completeness_result is None:
+                completeness_result = self._completeness.compute(checklist, entity_data)
+            return completeness_result
+
         # Human approval policy
         if self._human_required(require_human_approval, risk_tier):
             if not human_approved:
@@ -49,14 +55,14 @@ class GateEngine:
 
         # Rule evaluation (typed GateRule)
         for rule in rules:
-            rule_type = rule.type.strip()
+            rule_type = (getattr(rule, "type", "") or "").strip()
 
             if rule_type == "completeness_min":
                 if rule.percent is None:
                     reasons.append("Rule completeness_min missing required 'percent'.")
                     continue
 
-                completeness_result = self._completeness.compute(checklist, entity_data)
+                completeness_result = get_completeness()
                 if completeness_result.percent < int(rule.percent):
                     reasons.append(
                         f"Completeness {completeness_result.percent}% is below required {int(rule.percent)}%."

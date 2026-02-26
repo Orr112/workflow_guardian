@@ -27,3 +27,4 @@ venv/
 audit_log.jsonl
 *.jsonl
 entities.json
+review_log.jsonl

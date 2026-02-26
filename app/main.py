@@ -9,9 +9,11 @@ from app.engine.completeness import CompletenessEngine
 from app.engine.gates import GateEngine
 from app.engine.identity import IdentityError, IdentityValidator
 from app.spec_loader import load_spec
+from app.engine.review_archive import ReviewArchive, ReviewLogEntry
 from app.engine.state_machine import resolve_transition, TransitionError
 from app.engine.store import FileEntityStore, EntityRecord, StoreError
 
+from app.llm.client import get_config
 from app.llm.reviewer import review_code
 from app.llm.testgen import generate_tests
 
@@ -19,8 +21,26 @@ from app.llm.testgen import generate_tests
 STORE_PATH = Path("entities.json")
 
 def cmd_ai_review(file_path: str) -> int:
-    code = Path(file_path).read_text(encoding="utf-8")
-    out = review_code(code)
+    path = Path(file_path)
+    code = path.read_text(encoding="utf-8")
+
+    try:
+        out = review_code(code)
+    except Exception as e:
+        out = f"[AI REVIEW ERROR] {type(e).__name__}: {e}"
+
+    cfg = get_config()
+    archive = ReviewArchive(Path("review_log.jsonl"))
+    entry = ReviewLogEntry (
+        timestamp=ReviewArchive.now_iso(),
+        provider="anthropic",
+        model=cfg.model,
+        target_path=str(path),
+        content_sha256=ReviewArchive.sha256_text(code),
+        response_text=out,
+    )
+    archive.append(entry)
+
     print(out)
     return 0
 
