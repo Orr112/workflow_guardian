@@ -23,8 +23,19 @@ venv/
 # Ruff cache
 .ruff_cache/
 
+# Runtime artifacts
+runs/
+
 # Runtime logs
+*.diff
+*.patch 
+*_snapshot.json
+manifest.json
+test_report.txt
 audit_log.jsonl
 *.jsonl
 entities.json
 review_log.jsonl
+
+# OS junk
+.DS_Store
