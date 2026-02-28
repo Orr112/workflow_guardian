@@ -15,17 +15,14 @@ class FileContextV1(Agent):
         artifacts: list[str] = []
         missing: list[str] = []
 
-        for p in self.paths:
-            fp = ctx.repo_root / p
-            if not fp.exists():
-                missing.append(p)
+        for rel_path in self.paths:
+            p = ctx.repo_root / rel_path
+            if not p.exists():
+                missing.append(rel_path)
                 continue
-            content = fp.read_text(encoding="utf-8")
-            rel = store.write_text(f"files/{p}.txt", content)
-            artifacts.append(rel)
+            content = p.read_text(encoding="utf-8")
+            # store under artifacts/files/... with a stable key
+            out_rel = store.write_text(f"files/{rel_path}.txt", content)
+            artifacts.append(out_rel)
 
-        return {
-            "message": "File context exported",
-            "artifacts": artifacts,
-            "meta": {"missing": missing, "count": len(artifacts)},
-        }
+        return {"message": "File context exported", "artifacts": artifacts, "meta": {"missing": missing}}
