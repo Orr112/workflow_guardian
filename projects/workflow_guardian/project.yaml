@@ -21,8 +21,7 @@ pipeline:
 
   - stage: code_repair
     agent: coder_patch_llm_v1
-    inputs:
-    ["task", "files/app/engine/gates.py.txt", "files/tests/test_gates.py.txt",
+    inputs: ["task", "files/app/engine/gates.py.txt", "files/tests/test_gates.py.txt",
      "changes.patch", "git/apply_check_error.txt"]
 
   - stage: apply
