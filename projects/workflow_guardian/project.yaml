@@ -16,8 +16,14 @@ pipeline:
 
   - stage: code
     agent: coder_patch_llm_v1
-    inputs: ["task", "repo_tree.txt",  "plan.json",
+    inputs: ["task", "repo_tree.txt", 
        "files/app/engine/gates.py.txt", "files/tests/test_gates.py.txt"]
+
+  - stage: code_repair
+    agent: coder_patch_llm_v1
+    inputs:
+    ["task", "files/app/engine/gates.py.txt", "files/tests/test_gates.py.txt",
+     "changes.patch", "git/apply_check_error.txt"]
 
   - stage: apply
     agent: apply_patch_v1

@@ -6,31 +6,30 @@ class PatchValidationError(ValueError):
 def sanitize_patch_output(raw: str) -> str:
     t = raw.strip()
 
-    # Remove any markdown fences, including ```diff / ```patch / plain ```
-    # Do this line-wise so we don't accidentally delete valid diff content.
-    lines = t.splitlines()
-    cleaned_lines = []
-    for line in lines:
+    # Remove any markdown fence lines anywhere
+    lines = []
+    for line in t.splitlines():
         if re.match(r"^\s*```", line):
             continue
-        cleaned_lines.append(line)
-    t = "\n".join(cleaned_lines).strip()
+        lines.append(line)
+    t = "\n".join(lines).strip()
 
-    # Extract from first diff header onward
-    idx = t.find("diff --git ")
-    if idx == -1:
-        raise PatchValidationError("No 'diff --git' header found in model output.")
-    t = t[idx:].strip()
+    # MUST contain diff header; slice from first diff header onward
+    start = t.find("diff --git ")
+    if start == -1:
+        raise PatchValidationError("No 'diff --git' found; model did not return a patch.")
+    t = t[start:].strip()
 
     # Ensure newline at end
     if not t.endswith("\n"):
         t += "\n"
     return t
 
+
 def validate_basic(patch: str) -> None:
-    if "```" in patch:
-        raise PatchValidationError("Patch still contains markdown fences (```)")
     if not patch.startswith("diff --git "):
-        raise PatchValidationError("Patch does not start with 'diff --git'")
+        raise PatchValidationError("Patch must start with 'diff --git'.")
+    if "The changes made in this patch" in patch:
+        raise PatchValidationError("Patch contains prose.")
     if "\n--- " not in patch or "\n+++ " not in patch:
-        raise PatchValidationError("Patch missing ---/+++ file markers")
+        raise PatchValidationError("Patch missing ---/+++ markers.")
