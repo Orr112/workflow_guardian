@@ -31,3 +31,31 @@ def validate_basic(patch: str) -> None:
         raise PatchValidationError("Patch contains prose.")
     if "\n--- " not in patch or "\n+++ " not in patch:
         raise PatchValidationError("Patch missing ---/+++ markers.")
+    
+
+def sanitize_patch_output(raw: str) -> str:
+    """
+    Convert LLM output into a clean, git-apply-able patch:
+    - strips markdown fences (```diff, ```patch, ```)
+    - discards any prose before the first 'diff --git'
+    - ensures trailing newline
+    """
+    t = raw.strip()
+
+    # Remove any markdown fence lines anywhere
+    cleaned_lines: list[str] = []
+    for line in t.splitlines():
+        if re.match(r"^\s*```", line):
+            continue
+        cleaned_lines.append(line)
+    t = "\n".join(cleaned_lines).strip()
+
+    # Slice from first diff header onward
+    start = t.find("diff --git ")
+    if start == -1:
+        raise PatchValidationError("No 'diff --git' header found in model output.")
+    t = t[start:].strip()
+
+    if not t.endswith("\n"):
+        t += "\n"
+    return t

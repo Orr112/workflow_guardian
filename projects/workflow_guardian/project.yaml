@@ -10,19 +10,21 @@ pipeline:
     agent: repo_index_v1
     inputs: ["task"]
 
+  - stage: file_context
+    agent: file_context_v1
+    inputs: ["task"]
+
   - stage: plan
     agent: planner_v1
     inputs: ["task", "git/before_snapshot.json", "git/before.diff"]
 
   - stage: code
     agent: coder_patch_llm_v1
-    inputs: ["task", "repo_tree.txt", 
-       "files/app/engine/gates.py.txt", "files/tests/test_gates.py.txt"]
+    inputs: ["task","repo_tree.txt","files/app/engine/gates.py.txt","files/tests/test_gates.py.txt"]
 
   - stage: code_repair
     agent: coder_patch_llm_v1
-    inputs: ["task", "files/app/engine/gates.py.txt", "files/tests/test_gates.py.txt",
-     "changes.patch", "git/apply_check_error.txt"]
+    inputs: ["task","files/app/engine/gates.py.txt","files/tests/test_gates.py.txt","changes.patch","git/apply_check_error.txt"]
 
   - stage: apply
     agent: apply_patch_v1
@@ -30,10 +32,6 @@ pipeline:
 
   - stage: test
     agent: tester_v1
-    inputs: ["task"]
-
-  - stage: file_context
-    agent: file_context_v1
     inputs: ["task"]
 
   - stage: review
@@ -46,7 +44,7 @@ pipeline:
 
   - stage: manifest
     agent: manifest_v1
-    inputs: ["task", "git/before_snapshot.json", "git/after_snapshot.json", "changes.patch", "test_report.txt", "review.md", "plan.json"]
+    inputs: [ "task", "git/before_snapshot.json","git/after_snapshot.json","changes.patch","test_report.txt","review.md","plan.json"]
 
 logging:
   runs_dir: "runs"
