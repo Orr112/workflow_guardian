@@ -5,6 +5,7 @@ from typing import Any, Dict
 from app.agents.base import Agent
 from app.runtime.artifact_store import ArtifactStore
 from app.runtime.context import ContextBundle, RunContext
+from app.runtime.patch_tools import sanitize_patch_output, validate_basic, PatchValidationError
 
 
 PATCH_PROMPT = """\
@@ -59,7 +60,18 @@ class CoderPatchLLMV1(Agent):
             messages=[{"role": "user", "content": prompt}],
         )
 
-        patch = (resp.content[0].text or "").strip()
+        raw = (resp.content[0].text or "").strip()
+
+        try:
+            patch = sanitize_patch_output(raw)
+            validate_basic(patch)
+        except PatchValidationError:
+            # Save raw output for debugging, but mark invalid so apply stage refuses
+            patch = "(invalid patch)\n" + raw + ("\n" if not raw.endswith("\n") else "") 
+
+        if "```" in patch:
+            raise PatchValidationError("Fence survived sanitization")
+              
         if not patch:
             patch = "(no changes)\n"
 
