@@ -63,7 +63,7 @@ class ApplyPatchV1(Agent):
             check_proc = _run_git_apply(
                 repo_root=repo_root_str,
                 patch_text=patch,
-                args=["--check", "--3way", "--recount"],
+                args=["--check", "--recount"],
             )
             if check_proc.returncode != 0:
                 err = (
@@ -78,7 +78,7 @@ class ApplyPatchV1(Agent):
             apply_proc = _run_git_apply(
                 repo_root=repo_root_str,
                 patch_text=patch,
-                args=["--3way", "--recount"],
+                args=[ "--recount"],
             )
             if apply_proc.returncode != 0:
                 err = (
