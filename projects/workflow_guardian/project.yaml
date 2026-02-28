@@ -28,7 +28,7 @@ pipeline:
 
   - stage: apply
     agent: apply_patch_v1
-    inputs: ["task", "changes.patch"]
+    inputs: ["task", "changes.patch","files/app/engine/gates.py.txt", "files/tests/test_gates.py.txt"]
 
   - stage: test
     agent: tester_v1

@@ -8,6 +8,16 @@ from app.runtime.context import ContextBundle, RunContext
 from app.runtime.patch_tools import sanitize_patch_output, validate_basic, PatchValidationError
 
 
+def _allowed_paths_from_evidence_keys(evidence: dict[str, object]) -> list[str]:
+    allowed: list[str] = []
+    for key in evidence.keys():
+        # key looks like: "files/app/engine/gates.py.txt"
+        if key.startswith("files/") and key.endswith(".txt"):
+            allowed.append(key[len("files/") : -len(".txt")])
+    return sorted(set(allowed))
+
+
+
 PATCH_PROMPT = """\
 You are a senior software engineer. Generate a unified diff patch (git-style) that implements the TASK.
 
@@ -21,6 +31,12 @@ Rules:
 
 TASK:
 {task}
+
+ALLOWED_PATHS:
+{allowed_path}
+
+FILE_CONTENTS (source of truth):
+{file_context}
 
 REPO TREE (tracked files):
 {repo_tree}
@@ -36,12 +52,27 @@ OPTIONAL CONTEXT (raw evidence):
 
 class CoderPatchLLMV1(Agent):
     def run(self, ctx: RunContext, bundle: ContextBundle, store: ArtifactStore) -> Dict[str, Any]:
+
         repo_tree = bundle.evidence.get("repo_tree.txt", "")
         before_diff = bundle.evidence.get("git/before.diff", "")
         plan_json = bundle.evidence.get("plan.json", "")
 
+        allowed_paths = _allowed_paths_from_evidence_keys(bundle.evidence)
+
+        # Build file context correctly
+        file_context_chunks = []
+        for p in allowed_paths:
+            k = f"files/{p}.txt"  # ✅ FIXED EXTENSION
+            content = bundle.evidence.get(k, "")
+            file_context_chunks.append(f"--- {p} ---\n{content}\n")
+        file_context = "\n".join(file_context_chunks)
+
+        allowed_paths_str = "\n".join(f"- {p}" for p in allowed_paths)
+
         prompt = PATCH_PROMPT.format(
             task=bundle.task,
+            allowed_path=allowed_paths_str,  # ✅ FIXED VARIABLE
+            file_context=file_context,
             repo_tree=repo_tree[:120_000],
             before_diff=before_diff[:50_000],
             plan_json=plan_json[:50_000],
