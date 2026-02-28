@@ -96,11 +96,13 @@ class CoderPatchLLMV1(Agent):
         try:
             patch = sanitize_patch_output(raw)
             validate_basic(patch)
-        except PatchValidationError:
-            # Save raw output for debugging, but mark invalid so apply stage refuses
-            patch = "(invalid patch)\n" + raw + ("\n" if not raw.endswith("\n") else "") 
+        except PatchValidationError as e:
+            # Save raw output for debugging
+            rel = store.write_text("git/invalid_patch_raw.txt", raw)
+            raise PatchValidationError(f"{e} (see {rel})")
 
         if "```" in patch:
+            rel = store.write_text("git/sanitized_patch_debug.txt", patch)
             raise PatchValidationError("Fence survived sanitization")
               
         if not patch:

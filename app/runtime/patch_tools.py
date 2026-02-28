@@ -25,32 +25,29 @@ def validate_allowed_paths(patch: str, allowed: Iterable[str]) -> None:
 
 
 def validate_basic(patch: str) -> None:
+    if "```" in patch:
+        raise PatchValidationError("Patch still contains ``` fences.")
     if not patch.startswith("diff --git "):
         raise PatchValidationError("Patch must start with 'diff --git'.")
-    if "The changes made in this patch" in patch:
-        raise PatchValidationError("Patch contains prose.")
     if "\n--- " not in patch or "\n+++ " not in patch:
         raise PatchValidationError("Patch missing ---/+++ markers.")
     
 
 def sanitize_patch_output(raw: str) -> str:
-    """
-    Convert LLM output into a clean, git-apply-able patch:
-    - strips markdown fences (```diff, ```patch, ```)
-    - discards any prose before the first 'diff --git'
-    - ensures trailing newline
-    """
     t = raw.strip()
 
-    # Remove any markdown fence lines anywhere
-    cleaned_lines: list[str] = []
+    # 1) Drop any lines that contain triple backticks anywhere
+    lines = []
     for line in t.splitlines():
-        if re.match(r"^\s*```", line):
+        if "```" in line:
             continue
-        cleaned_lines.append(line)
-    t = "\n".join(cleaned_lines).strip()
+        lines.append(line)
+    t = "\n".join(lines).strip()
 
-    # Slice from first diff header onward
+    # 2) In case any backticks remain embedded, remove them
+    t = t.replace("```", "")
+
+    # 3) Slice from first diff header onward (discard any remaining prose)
     start = t.find("diff --git ")
     if start == -1:
         raise PatchValidationError("No 'diff --git' header found in model output.")
