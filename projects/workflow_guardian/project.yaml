@@ -1,0 +1,43 @@
+project: workflow_guardian
+repo_root: "."
+
+pipeline:
+  - stage: snapshot_before
+    agent: git_snapshot_before_v1
+    inputs: ["task"]
+
+  - stage: repo_index
+    agent: repo_index_v1
+    inputs: ["task"]
+
+  - stage: plan
+    agent: planner_v1
+    inputs: ["task", "git/before_snapshot.json", "git/before.diff"]
+
+  - stage: code
+    agent: coder_patch_llm_v1
+    inputs: ["task", "repo_tree.txt", "git/before.diff", "plan.json"]
+
+  - stage: apply
+    agent: apply_patch_v1
+    inputs: ["task", "changes.patch"]
+
+  - stage: test
+    agent: tester_v1
+    inputs: ["task"]
+
+  - stage: review
+    agent: reviewer_v1
+    inputs: ["task", "changes.patch", "test_report.txt"]
+
+  - stage: snapshot_after
+    agent: git_snapshot_after_v1
+    inputs: ["task"]
+
+  - stage: manifest
+    agent: manifest_v1
+    inputs: ["task", "git/before_snapshot.json", "git/after_snapshot.json", "changes.patch", "test_report.txt", "review.md", "plan.json"]
+
+logging:
+  runs_dir: "runs"
+  artifacts_dirname: "artifacts"

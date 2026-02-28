@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 
+from app.agents.registry import default_registry
 from app.engine.audit import AuditLogger, AuditLogEntry
 from app.engine.completeness import CompletenessEngine
 from app.engine.gates import GateEngine
@@ -16,6 +17,8 @@ from app.engine.store import FileEntityStore, EntityRecord, StoreError
 from app.llm.client import get_config
 from app.llm.reviewer import review_code
 from app.llm.testgen import generate_tests
+
+from app.runtime.orchestrator import run_pipeline
 
 
 STORE_PATH = Path("entities.json")
@@ -70,6 +73,9 @@ def usage() -> None:
     print("  python -m app.main apply-transition <EntityType> <EntityId> <ToState> [--human-approved]")
     print("  python -m app.main ai-review <path-to_py_file>")
     print("  python -m app.main ai-testgen <path_to_py_file>")
+    print("  python -m app.main run-pipeline <project_pack_path> \"<task text>\"")
+    print("  python -m app.main run-pipeline projects/workflow_guardian/project.yaml \"Add a new gate rule\"")
+
 
 def cmd_create(spec_path: Path, entity_type: str, entity_id: str, risk_tier: str, json_payload: str) -> int:
     spec = load_spec(spec_path)
@@ -390,7 +396,17 @@ def main() -> int:
         human_approved = "--human-approved" in sys.argv[5:]
         return cmd_apply_transition(spec_path, sys.argv[2], sys.argv[3], sys.argv[4], human_approved)
 
-    
+    if cmd == "run-pipeline":
+        if len(sys.argv) != 4:
+            usage()
+            return 2
+        pack_path = Path(sys.argv[2])
+        task = sys.argv[3]
+        run_dir = run_pipeline(project_pack_path=pack_path, task=task, agent_registry=default_registry())
+        print(f"✅ Pipeline completed. Run dir: {run_dir}")
+        return 0
+
+
     if cmd == "transition":
         # transition Ticket Draft Planned medium '{...}' --human-approved
         if len(sys.argv) < 7:
