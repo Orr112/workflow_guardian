@@ -6,7 +6,7 @@ from typing import Any, Dict
 from app.agents.base import Agent
 from app.runtime.artifact_store import ArtifactStore
 from app.runtime.context import ContextBundle, RunContext
-from app.runtime.git_tools import apply_path, snapshot
+from app.runtime.git_tools import apply_patch, snapshot
 
 
 class ApplyPatchV1(Agent):

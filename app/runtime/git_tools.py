@@ -27,7 +27,7 @@ def snapshot(repo_root: Path) -> GitSnapshot:
     diff = _run(repo_root, ["git", "diff"])
     return GitSnapshot(head=head, status=status, diff=diff)
 
-def apply_path(repo_root: Path, patch_text: str) -> None:
+def apply_patch(repo_root: Path, patch_text: str) -> None:
     proc = subprocess.run(
         ["git", "apply", "--whitespace=fix", "-"],
         cwd=str(repo_root),
