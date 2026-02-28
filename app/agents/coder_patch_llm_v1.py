@@ -95,11 +95,17 @@ class CoderPatchLLMV1(Agent):
 
         try:
             patch = sanitize_patch_output(raw)
-            validate_basic(patch)
-        except PatchValidationError as e:
-            # Save raw output for debugging
-            rel = store.write_text("git/invalid_patch_raw.txt", raw)
-            raise PatchValidationError(f"{e} (see {rel})")
+        except PatchValidationError:
+    # retry once
+            repair_prompt = (
+        "You did not output a unified diff patch. "
+        "Return ONLY a unified diff patch starting with 'diff --git'. "
+        "No commentary.\n\n"
+        + prompt
+    )
+        resp2 = client.messages.create(...)
+        raw2 = (resp2.content[0].text or "").strip()
+        patch = sanitize_patch_output(raw2)
 
         if "```" in patch:
             rel = store.write_text("git/sanitized_patch_debug.txt", patch)
