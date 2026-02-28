@@ -16,7 +16,8 @@ pipeline:
 
   - stage: code
     agent: coder_patch_llm_v1
-    inputs: ["task", "repo_tree.txt", "git/before.diff", "plan.json"]
+    inputs: [["task", "repo_tree.txt", "git/before.diff", "plan.json",
+       "files/app/engine/gates.py.txt", "files/tests/test_gates.py.txt"]
 
   - stage: apply
     agent: apply_patch_v1
@@ -24,6 +25,10 @@ pipeline:
 
   - stage: test
     agent: tester_v1
+    inputs: ["task"]
+
+  - stage: file_context
+    agent: file_context_v1
     inputs: ["task"]
 
   - stage: review

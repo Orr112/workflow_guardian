@@ -38,3 +38,13 @@ def apply_patch(repo_root: Path, patch_text: str) -> None:
     if proc.returncode != 0:
         raise RuntimeError(f"git apply failed:\n{proc.stderr}")
     
+def check_patch(repo_root: Path, patch_text: str) -> None:
+    proc = subprocess.run(
+        ["git", "apply", "--check", "-"],
+        cwd=str(repo_root),
+        input=patch_text,
+        text=True,
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"git apply --check failed:\n{proc.stderr}")
