@@ -7,6 +7,7 @@ from app.agents.base import Agent
 from app.runtime.artifact_store import ArtifactStore
 from app.runtime.context import ContextBundle, RunContext
 from app.runtime.git_tools import snapshot
+from app.runtime.patch_tools import validate_allowed_paths, PatchValidationError
 
 
 def _run_git_apply(
@@ -41,6 +42,13 @@ class ApplyPatchV1(Agent):
 
     def run(self, ctx: RunContext, bundle: ContextBundle, store: ArtifactStore) -> Dict[str, Any]:
         patch = bundle.evidence.get("changes.patch", "")
+        
+        try:
+            validate_allowed_paths(patch, allowed=["app/engine/gates.py", "tests/test_gates.py"])
+        except PatchValidationError as e:
+            rel = store.write_text("git/patch_validation_error.txt", str(e) + "\n")
+            raise RuntimeError(f"Patch path validation failed (see {rel}).")
+        
         if not patch.strip() or patch.strip().startswith("(no changes)"):
             raise RuntimeError("No patch to apply (changes.patch is empty).")
 

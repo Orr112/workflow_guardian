@@ -1,29 +1,27 @@
 import re
+from typing import Iterable
 
 class PatchValidationError(ValueError):
     pass
 
-def sanitize_patch_output(raw: str) -> str:
-    t = raw.strip()
+_DIFF_RE = re.compile(r"^diff --git a/(.+?) b/(.+?)$", re.MULTILINE)
 
-    # Remove any markdown fence lines anywhere
-    lines = []
-    for line in t.splitlines():
-        if re.match(r"^\s*```", line):
-            continue
-        lines.append(line)
-    t = "\n".join(lines).strip()
+def patch_touched_paths(patch: str) -> list[str]:
+    paths: list[str] = []
+    for m in _DIFF_RE.finditer(patch):
+        a_path, b_path = m.group(1), m.group(2)
+        # usually same; take b_path
+        paths.append(b_path)
+    return paths
 
-    # MUST contain diff header; slice from first diff header onward
-    start = t.find("diff --git ")
-    if start == -1:
-        raise PatchValidationError("No 'diff --git' found; model did not return a patch.")
-    t = t[start:].strip()
-
-    # Ensure newline at end
-    if not t.endswith("\n"):
-        t += "\n"
-    return t
+def validate_allowed_paths(patch: str, allowed: Iterable[str]) -> None:
+    allowed_set = set(allowed)
+    touched = patch_touched_paths(patch)
+    if not touched:
+        raise PatchValidationError("Patch contains no diff --git sections.")
+    bad = [p for p in touched if p not in allowed_set]
+    if bad:
+        raise PatchValidationError(f"Patch touches disallowed paths: {bad}")
 
 
 def validate_basic(patch: str) -> None:
