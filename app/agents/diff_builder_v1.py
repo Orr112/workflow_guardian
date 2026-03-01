@@ -195,34 +195,34 @@ class DiffBuilderV1(Agent):
             if old == new:
                 continue
 
-            old_lines = [l.rstrip("\n") for l in old.splitlines()]
-            new_lines = [l.rstrip("\n") for l in new.splitlines()]
+            old_lines = old.splitlines()
+            new_lines = new.splitlines()        
 
             print("DIFF_BUILDER_SIGNATURE=2026-02-28-no-double-newlines")
-            
+
             diff_lines = list(
-            difflib.unified_diff(
+                difflib.unified_diff(
                 old_lines,
                 new_lines,
                 fromfile=f"a/{path}",
                 tofile=f"b/{path}",
-                lineterm="\n",
+                lineterm="",  # <-- critical: no line terminators from difflib
                 n=3,
                 )
             )
 
             patch_parts.append(f"diff --git a/{path} b/{path}\n")
-            patch_parts.extend(diff_lines)
+            patch_parts.extend([dl + "\n" for dl in diff_lines])
 
 # Ensure a blank line between file diffs (optional but nice)
             if patch_parts and not patch_parts[-1].endswith("\n"):
                 patch_parts[-1] += "\n"
 
-        patch_text = "".join(patch_parts).strip() + "\n"
-        if not patch_text.strip():
-            patch_text = "(no changes)\n"
+            patch_text = "".join(patch_parts)
+            if not patch_text.endswith("\n"):
+                patch_text += "\n"
 
-        rel = store.write_text("changes.patch", patch_text)
+            rel = store.write_text("changes.patch", patch_text)
 
         return {
             "message": "Deterministic patch built from proposed full-file updates (disk-based)",
