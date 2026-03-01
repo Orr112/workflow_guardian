@@ -195,11 +195,13 @@ class DiffBuilderV1(Agent):
             if old == new:
                 continue
 
-            old_lines = old.splitlines(keepends=False)
-            new_lines = new.splitlines(keepends=False)
+            old_lines = [l.rstrip("\n") for l in old.splitlines()]
+            new_lines = [l.rstrip("\n") for l in new.splitlines()]
 
+            print("DIFF_BUILDER_SIGNATURE=2026-02-28-no-double-newlines")
+            
             diff_lines = list(
-                difflib.unified_diff(
+            difflib.unified_diff(
                 old_lines,
                 new_lines,
                 fromfile=f"a/{path}",
