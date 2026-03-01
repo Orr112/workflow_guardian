@@ -6,11 +6,6 @@ from typing import Any, Dict
 from app.agents.base import Agent
 from app.runtime.artifact_store import ArtifactStore
 from app.runtime.context import ContextBundle, RunContext
-from app.runtime.patch_tools import (
-    sanitize_patch_output,
-    validate_basic,
-    PatchValidationError,
-)
 
 
 def _allowed_paths_from_evidence_keys(evidence: dict[str, object]) -> list[str]:

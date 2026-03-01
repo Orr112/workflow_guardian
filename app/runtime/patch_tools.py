@@ -9,8 +9,7 @@ _DIFF_RE = re.compile(r"^diff --git a/(.+?) b/(.+?)$", re.MULTILINE)
 def patch_touched_paths(patch: str) -> list[str]:
     paths: list[str] = []
     for m in _DIFF_RE.finditer(patch):
-        a_path, b_path = m.group(1), m.group(2)
-        # usually same; take b_path
+        b_path = m.group(2)
         paths.append(b_path)
     return paths
 

@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 from app.agents.apply_patch_v1 import ApplyPatchV1
-from app.agents.coder_patch_v1 import CoderPatchV1
 from app.agents.coder_patch_llm_v1 import CoderPatchLLMV1
 from app.agents.diff_builder_v1 import DiffBuilderV1
 from app.agents.file_context_v1 import FileContextV1
 from app.agents.git_snapshot_v1 import GitSnapshotV1
 from app.agents.manifest_v1 import ManifestV1
-from app.agents.coder_v1 import CoderV1
 from app.agents.doc_v1 import DocV1
 from app.agents.planner_v1 import PlannerV1
 from app.agents.reviewer_v1 import ReviewerV1
