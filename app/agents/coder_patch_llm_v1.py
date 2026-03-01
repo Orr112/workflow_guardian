@@ -21,11 +21,11 @@ def _allowed_paths_from_evidence_keys(evidence: dict[str, object]) -> list[str]:
 
 
 PATCH_PROMPT = """\
-You are a senior software engineer. Generate a unified diff patch (git-style) that implements the TASK.
+You are a senior software engineer. Generate a full updated file patch (git-style) that implements the TASK.
 
 OUTPUT CONTRACT (must follow exactly):
-- Output ONLY a unified diff patch.
-- The FIRST line MUST start with: diff --git
+- Output the FULL updated contents of each modified file.
+- The FIRST line MUST start with: updated file --git
 - No commentary. No markdown fences.
 - You may ONLY modify files listed in ALLOWED_PATHS.
 - Do NOT create or rename files.
