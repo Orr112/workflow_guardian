@@ -53,3 +53,21 @@ def test_allows_low_risk_without_human_when_policy_medium_or_high():
         human_approved=False,
     )
     assert decision.allowed is True
+
+
+def test_always_blocks_with_reason():
+    engine = GateEngine()
+    rules = [GateRule(type="always_block")]
+    checklist = ["a", "b"]
+    data = {"a": True, "b": True}
+
+    decision = engine.evaluate(
+        checklist=checklist,
+        entity_data=data,
+        rules=rules,
+        require_human_approval=False,
+        risk_tier="low",
+        human_approved=False,
+    )
+    assert decision.allowed is False
+    assert "Rule always_block triggered." in decision.reasons[0]

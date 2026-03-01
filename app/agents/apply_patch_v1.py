@@ -10,6 +10,25 @@ from app.runtime.git_tools import snapshot
 from app.runtime.patch_tools import validate_allowed_paths, PatchValidationError
 
 
+def _allowed_paths_from_evidence(evidence: dict[str, object]) -> list[str]:
+    """
+    Accept both:
+      - files/<path>.txt
+      - files/<path>
+    """
+    out: set[str] = set()
+    for k in evidence.keys():
+        if not k.startswith("files/"):
+            continue
+        p = k[len("files/") :]
+        if p.endswith(".txt"):
+            p = p[: -len(".txt")]
+        if not p or p.endswith("/"):
+            continue
+        out.add(p)
+    return sorted(out)
+
+
 def _run_git_apply(
     *,
     repo_root: str,
@@ -42,11 +61,16 @@ class ApplyPatchV1(Agent):
 
     def run(self, ctx: RunContext, bundle: ContextBundle, store: ArtifactStore) -> Dict[str, Any]:
         patch = bundle.evidence.get("changes.patch", "")
-        
+
+        allowed_paths = _allowed_paths_from_evidence(bundle.evidence)
+
         try:
-            validate_allowed_paths(patch, allowed=["app/engine/gates.py", "tests/test_gates.py"])
+            validate_allowed_paths(patch, allowed=allowed_paths)
         except PatchValidationError as e:
-            rel = store.write_text("git/patch_validation_error.txt", str(e) + "\n")
+            rel = store.write_text(
+                "git/patch_validation_error.txt",
+                f"{e}\n\nAllowed paths:\n{allowed_paths}\n",
+            )
             raise RuntimeError(f"Patch path validation failed (see {rel}).")
         
         if not patch.strip() or patch.strip().startswith("(no changes)"):

@@ -10,12 +10,30 @@ from app.runtime.context import ContextBundle, RunContext
 
 
 def _allowed_paths_from_evidence(evidence: dict[str, object]) -> list[str]:
-    # keys like: files/app/engine/gates.py.txt  -> app/engine/gates.py
-    out: list[str] = []
+    """
+    Accept both:
+      - files/<path>.txt  (legacy)
+      - files/<path>      (newer / alternate file_context)
+    """
+    out: set[str] = set()
+
     for k in evidence.keys():
-        if k.startswith("files/") and k.endswith(".txt"):
-            out.append(k[len("files/") : -len(".txt")])
-    return sorted(set(out))
+        if not k.startswith("files/"):
+            continue
+
+        p = k[len("files/") :]
+
+        # Handle both conventions
+        if p.endswith(".txt"):
+            p = p[: -len(".txt")]
+
+        # Ignore empty/dir-like keys
+        if not p or p.endswith("/"):
+            continue
+
+        out.add(p)
+
+    return sorted(out)
 
 
 def _proposed_paths_from_evidence(evidence: dict[str, object]) -> list[str]:
@@ -153,7 +171,6 @@ class DiffBuilderV1(Agent):
         if not allowed_paths:
             raise RuntimeError("DiffBuilderV1: no allowed paths (missing files/<path>.txt evidence).")
 
-        # Only build diffs for proposed files that are allowed
         targets = [p for p in proposed_paths if p in allowed_paths]
 
         if not targets:
@@ -164,29 +181,18 @@ class DiffBuilderV1(Agent):
 
         if not (repo_root / ".git").exists():
             raise RuntimeError(f"DiffBuilderV1: repo_root does not contain .git: {repo_root}")
+
         patch_parts: list[str] = []
 
-        
         for path in targets:
-            # OLD: read directly from repo working tree (source of truth for git apply)
+            # OLD from repo working tree
             repo_file = repo_root / path
             old = repo_file.read_text(encoding="utf-8") if repo_file.exists() else ""
 
-            print("DEBUG repo_root:", repo_root.resolve())
-            print("DEBUG repo_file exists:", repo_file.exists())
-
-            # NEW: read proposed content from evidence (still fine) BUT fail fast if missing
-            new_key = f"proposed/{path}"
-            new = evidence.get(new_key, "")
-
-            if isinstance(new, str) and new.startswith("[missing evidence:"):
-                raise RuntimeError(f"DiffBuilderV1: missing proposed content for {new_key}: {new}")
-
-            # --- NEW from run artifacts filesystem (source of truth) ---
+            # NEW from run artifacts
             proposed_file = _find_proposed_file(ctx, store, path)
             new = proposed_file.read_text(encoding="utf-8")
 
-            # Normalize to end with newline (reduces diff weirdness)
             if old and not old.endswith("\n"):
                 old += "\n"
             if new and not new.endswith("\n"):
@@ -196,33 +202,30 @@ class DiffBuilderV1(Agent):
                 continue
 
             old_lines = old.splitlines()
-            new_lines = new.splitlines()        
-
-            print("DIFF_BUILDER_SIGNATURE=2026-02-28-no-double-newlines")
+            new_lines = new.splitlines()
 
             diff_lines = list(
                 difflib.unified_diff(
-                old_lines,
-                new_lines,
-                fromfile=f"a/{path}",
-                tofile=f"b/{path}",
-                lineterm="",  # <-- critical: no line terminators from difflib
-                n=3,
+                    old_lines,
+                    new_lines,
+                    fromfile=f"a/{path}",
+                    tofile=f"b/{path}",
+                    lineterm="",
+                    n=3,
                 )
             )
 
             patch_parts.append(f"diff --git a/{path} b/{path}\n")
-            patch_parts.extend([dl + "\n" for dl in diff_lines])
+            patch_parts.extend(dl + "\n" for dl in diff_lines)
 
-# Ensure a blank line between file diffs (optional but nice)
-            if patch_parts and not patch_parts[-1].endswith("\n"):
-                patch_parts[-1] += "\n"
+        patch_text = "".join(patch_parts)
 
-            patch_text = "".join(patch_parts)
-            if not patch_text.endswith("\n"):
-                patch_text += "\n"
+        if not patch_text.strip():
+            patch_text = "(no changes)\n"
+        elif not patch_text.endswith("\n"):
+            patch_text += "\n"
 
-            rel = store.write_text("changes.patch", patch_text)
+        rel = store.write_text("changes.patch", patch_text)
 
         return {
             "message": "Deterministic patch built from proposed full-file updates (disk-based)",

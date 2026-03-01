@@ -9,11 +9,30 @@ from app.runtime.context import ContextBundle, RunContext
 
 
 def _allowed_paths_from_evidence_keys(evidence: dict[str, object]) -> list[str]:
-    allowed: list[str] = []
-    for key in evidence.keys():
-        if key.startswith("files/") and key.endswith(".txt"):
-            allowed.append(key[len("files/") : -len(".txt")])
-    return sorted(set(allowed))
+    """
+    Accept both:
+      - files/<path>.txt  (legacy)
+      - files/<path>      (newer / alternate file_context)
+    """
+    out: set[str] = set()
+
+    for k in evidence.keys():
+        if not k.startswith("files/"):
+            continue
+
+        p = k[len("files/") :]
+
+        # Handle both conventions
+        if p.endswith(".txt"):
+            p = p[: -len(".txt")]
+
+        # Ignore empty/dir-like keys
+        if not p or p.endswith("/"):
+            continue
+
+        out.add(p)
+
+    return sorted(out)
 
 
 PATCH_PROMPT = """\

@@ -23,7 +23,8 @@ class GateEngine:
     Evaluates gate specs for transitions.
     v1 supports:
       - completeness_min
-      - require_human_approval: true/false/"medium_or_high"
+      - require_human_approval: true/false,"medium_or_high"
+      - always_block
     """
 
     def __init__(self):
@@ -67,6 +68,9 @@ class GateEngine:
                     reasons.append(
                         f"Completeness {completeness_result.percent}% is below required {int(rule.percent)}%."
                     )
+            elif rule_type == "always_block":
+                reasons.append("Rule always_block triggered.")
+                return GateDecision(allowed=False, reasons=tuple(reasons))
             else:
                 reasons.append(f"Unsupported rule type: {rule_type}")
 
