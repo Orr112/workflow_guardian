@@ -15,6 +15,7 @@ pipeline:
     inputs:
       - "task"
       - "README.md"
+      - ".gitignore"
       - "docs/PRINCIPLES.md"
       - "docs/INJURY_POLICY.md"
       - "data/injuries.yaml"
@@ -34,6 +35,7 @@ pipeline:
     inputs:
       - "task"
       - "repo_tree.txt"
+      - "files/.gitignore.txt"
       - "files/README.md.txt"
       - "files/docs/PRINCIPLES.md.txt"
       - "files/docs/INJURY_POLICY.md.txt"
