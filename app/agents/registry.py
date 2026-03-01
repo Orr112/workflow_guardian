@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.agents.apply_patch_v1 import ApplyPatchV1
 from app.agents.coder_patch_v1 import CoderPatchV1
 from app.agents.coder_patch_llm_v1 import CoderPatchLLMV1
+from app.agents.diff_builder_v1 import DiffBuilderV1
 from app.agents.file_context_v1 import FileContextV1
 from app.agents.git_snapshot_v1 import GitSnapshotV1
 from app.agents.manifest_v1 import ManifestV1
@@ -23,6 +24,7 @@ def default_registry():
         "file_context_v1": FileContextV1(paths=["app/engine/gates.py", "tests/test_gates.py"]),
         "coder_patch_llm_v1": CoderPatchLLMV1(),
         "apply_patch_v1": ApplyPatchV1(),
+        "diff_builder_v1": DiffBuilderV1(),
         "tester_v1": TesterV1(),
         "reviewer_v1": ReviewerV1(),
         "doc_v1": DocV1(),
