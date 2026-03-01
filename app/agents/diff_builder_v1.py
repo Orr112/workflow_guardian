@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import difflib
 from typing import Any, Dict
+from pathlib import Path
 
 from app.agents.base import Agent
 from app.runtime.artifact_store import ArtifactStore
@@ -54,12 +55,15 @@ class DiffBuilderV1(Agent):
         patch_parts: list[str] = []
 
         for path in targets:
-            old_key = f"files/{path}.txt"
             new_key = f"proposed/{path}"
-
-            old = evidence.get(old_key, "")
             new = evidence.get(new_key, "")
 
+            repo_file = Path(ctx.repo_root) / path
+            if repo_file.exists():
+                old = repo_file.read_text(encoding="utf-8")
+            else:
+                old = ""
+            
             if not isinstance(old, str):
                 old = str(old)
             if not isinstance(new, str):
