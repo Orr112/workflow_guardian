@@ -160,16 +160,21 @@ class DiffBuilderV1(Agent):
             rel = store.write_text("changes.patch", "(no changes)\n")
             return {"message": "No proposed file changes", "artifacts": [rel], "meta": {"targets": []}}
 
-        repo_root = Path(getattr(ctx, "repo_root", "."))
+        repo_root = Path(ctx.repo_root).resolve()
+
+        if not (repo_root / ".git").exists():
+            raise RuntimeError(f"DiffBuilderV1: repo_root does not contain .git: {repo_root}")
         patch_parts: list[str] = []
 
-        repo_root = Path(getattr(ctx, "repo_root", "."))
-
+        
         for path in targets:
             # OLD: read directly from repo working tree (source of truth for git apply)
             repo_file = repo_root / path
             old = repo_file.read_text(encoding="utf-8") if repo_file.exists() else ""
 
+            print("DEBUG repo_root:", repo_root.resolve())
+            print("DEBUG repo_file exists:", repo_file.exists())
+            
             # NEW: read proposed content from evidence (still fine) BUT fail fast if missing
             new_key = f"proposed/{path}"
             new = evidence.get(new_key, "")
