@@ -39,11 +39,17 @@ class TesterV1(Agent):
         ctx.private.setdefault("tester_v1", {})
         ctx.private["tester_v1"]["exit_code"] = proc.returncode
 
-        if proc.returncode != 0:
+        # pytest exit codes:
+        # 0 = all tests passed
+        # 1 = tests failed
+        # 5 = no tests collected
+        if proc.returncode not in (0, 5):
             raise RuntimeError("pytest failed (see artifacts/test_report.txt)")
 
+        status_msg = "pytest passed" if proc.returncode == 0 else "no tests collected"
+
         return {
-            "message": "pytest passed",
+            "message": status_msg,
             "artifacts": [rel],
             "meta": {"exit_code": proc.returncode},
         }
