@@ -38,4 +38,4 @@ entities.json
 review_log.jsonl
 
 # OS junk
-.DS_Store
+.DS_Store.DS_Store
