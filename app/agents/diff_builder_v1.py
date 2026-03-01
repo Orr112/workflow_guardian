@@ -174,7 +174,7 @@ class DiffBuilderV1(Agent):
 
             print("DEBUG repo_root:", repo_root.resolve())
             print("DEBUG repo_file exists:", repo_file.exists())
-            
+
             # NEW: read proposed content from evidence (still fine) BUT fail fast if missing
             new_key = f"proposed/{path}"
             new = evidence.get(new_key, "")
@@ -195,25 +195,24 @@ class DiffBuilderV1(Agent):
             if old == new:
                 continue
 
-            old_lines = old.splitlines(keepends=True)
-            new_lines = new.splitlines(keepends=True)
+            old_lines = old.splitlines(keepends=False)
+            new_lines = new.splitlines(keepends=False)
 
             diff_lines = list(
                 difflib.unified_diff(
-                    old_lines,
-                    new_lines,
-                    fromfile=f"a/{path}",
-                    tofile=f"b/{path}",
-                    lineterm="",
-                    n=3,
+                old_lines,
+                new_lines,
+                fromfile=f"a/{path}",
+                tofile=f"b/{path}",
+                lineterm="\n",
+                n=3,
                 )
             )
 
-            # Prepend a git-style header that git apply likes.
             patch_parts.append(f"diff --git a/{path} b/{path}\n")
-            patch_parts.extend([line + "\n" for line in diff_lines])
+            patch_parts.extend(diff_lines)
 
-            # Ensure file separation newline
+# Ensure a blank line between file diffs (optional but nice)
             if patch_parts and not patch_parts[-1].endswith("\n"):
                 patch_parts[-1] += "\n"
 
