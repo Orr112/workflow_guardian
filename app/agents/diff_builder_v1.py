@@ -163,13 +163,19 @@ class DiffBuilderV1(Agent):
         repo_root = Path(getattr(ctx, "repo_root", "."))
         patch_parts: list[str] = []
 
+        repo_root = Path(getattr(ctx, "repo_root", "."))
+
         for path in targets:
-            # --- OLD from repo filesystem (source of truth) ---
+            # OLD: read directly from repo working tree (source of truth for git apply)
             repo_file = repo_root / path
-            if repo_file.exists():
-                old = repo_file.read_text(encoding="utf-8")
-            else:
-                old = ""
+            old = repo_file.read_text(encoding="utf-8") if repo_file.exists() else ""
+
+            # NEW: read proposed content from evidence (still fine) BUT fail fast if missing
+            new_key = f"proposed/{path}"
+            new = evidence.get(new_key, "")
+
+            if isinstance(new, str) and new.startswith("[missing evidence:"):
+                raise RuntimeError(f"DiffBuilderV1: missing proposed content for {new_key}: {new}")
 
             # --- NEW from run artifacts filesystem (source of truth) ---
             proposed_file = _find_proposed_file(ctx, store, path)
