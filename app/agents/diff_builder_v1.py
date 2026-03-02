@@ -149,6 +149,39 @@ def _find_proposed_file(ctx: RunContext, store: ArtifactStore, rel_path: str) ->
         "add its attribute name to _candidate_artifacts_roots()."
     )
 
+def _proposed_paths_from_disk(ctx: RunContext, store: ArtifactStore) -> list[str]:
+    """
+    Discover proposed files by scanning the run artifacts directory on disk.
+
+    Returns repo-relative paths like:
+      scripts/refresh_data.py
+      README.md
+    """
+    roots = _candidate_artifacts_roots(ctx, store)
+
+    proposed_root: Path | None = None
+    for root in roots:
+        # root might already be artifacts/
+        p1 = root / "proposed"
+        if p1.exists() and p1.is_dir():
+            proposed_root = p1
+            break
+
+        # root might be run_dir/, with artifacts inside it
+        p2 = root / "artifacts" / "proposed"
+        if p2.exists() and p2.is_dir():
+            proposed_root = p2
+            break
+
+    if not proposed_root:
+        return []
+
+    out: list[str] = []
+    for f in proposed_root.rglob("*"):
+        if f.is_file():
+            out.append(f.relative_to(proposed_root).as_posix())
+    return sorted(set(out))
+
 
 class DiffBuilderV1(Agent):
     """
@@ -167,6 +200,11 @@ class DiffBuilderV1(Agent):
 
         allowed_paths = _allowed_paths_from_evidence(evidence)
         proposed_paths = _proposed_paths_from_evidence(evidence)
+
+        # If YAML no longer enumerates proposed/* inputs, evidence may not include proposed/ keys.
+        # In that case, discover proposed files directly from disk.
+        if not proposed_paths:
+            proposed_paths = _proposed_paths_from_disk(ctx, store)
 
         clean_proposed_paths: list[str] = []
         for p in proposed_paths:
