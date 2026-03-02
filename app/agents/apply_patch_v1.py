@@ -62,6 +62,14 @@ class ApplyPatchV1(Agent):
     def run(self, ctx: RunContext, bundle: ContextBundle, store: ArtifactStore) -> Dict[str, Any]:
         patch = bundle.evidence.get("changes.patch", "")
 
+        if "diff --git " not in patch:
+            rel = store.write_text("git/patch_validation_error.txt", "No changes to apply (empty patch).\n")
+            return {
+                "message": "No changes to apply",
+                "artifacts": [rel],
+                "meta": {"noop": True},
+             }
+
         allowed_paths = _allowed_paths_from_evidence(bundle.evidence)
 
         try:
