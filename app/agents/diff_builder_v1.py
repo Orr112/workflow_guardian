@@ -190,8 +190,25 @@ class DiffBuilderV1(Agent):
             old = repo_file.read_text(encoding="utf-8") if repo_file.exists() else ""
 
             # NEW from run artifacts
-            proposed_file = _find_proposed_file(ctx, store, path)
-            new = proposed_file.read_text(encoding="utf-8")
+            # NEW from run artifacts (preferred), fallback to evidence if not materialized on disk
+            try:
+                proposed_file = _find_proposed_file(ctx, store, path)
+                new = proposed_file.read_text(encoding="utf-8")
+            except RuntimeError:
+                new_key = f"proposed/{path}"
+                new = bundle.evidence.get(new_key)
+
+                if not isinstance(new, str) or not new.strip():
+                    raise RuntimeError(
+                        f"DiffBuilderV1: proposed content missing for {new_key} "
+                        "(not on disk and not present in evidence)."
+                    )
+
+                if new.startswith("[missing evidence:"):
+                    raise RuntimeError(f"DiffBuilderV1: proposed artifact missing: {new}")
+
+                # Optional: materialize it so future stages/debugging can see it on disk
+                store.write_text(f"proposed/{path}", new)
 
             if old and not old.endswith("\n"):
                 old += "\n"
