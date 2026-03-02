@@ -168,6 +168,16 @@ class DiffBuilderV1(Agent):
         allowed_paths = _allowed_paths_from_evidence(evidence)
         proposed_paths = _proposed_paths_from_evidence(evidence)
 
+        clean_proposed_paths: list[str] = []
+        for p in proposed_paths:
+            v = evidence.get(f"proposed/{p}")
+            if isinstance(v, str) and v.startswith("[missing evidence:"):
+                continue
+            clean_proposed_paths.append(p)
+
+        proposed_paths = clean_proposed_paths
+
+
         if not allowed_paths:
             raise RuntimeError("DiffBuilderV1: no allowed paths (missing files/<path>.txt evidence).")
 

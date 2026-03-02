@@ -10,26 +10,26 @@ pipeline:
     agent: repo_index_v1
     inputs: ["task"]
 
+  # Allowlist source: file_context exports files/<path>(.txt) evidence.
+  # Keep this list relatively stable; prompts can choose any subset without YAML edits.
   - stage: file_context
     agent: file_context_v1
     inputs:
       - "task"
-      - "README.md"
       - ".gitignore"
+      - "README.md"
       - "docs/PRINCIPLES.md"
       - "docs/INJURY_POLICY.md"
       - "data/injuries.yaml"
       - "scripts/refresh_data.py"
       - "scripts/build_watch_list.py"
       - "dashboard/app.py"
-      - "SAFE_CHECK.txt"
 
   - stage: plan
     agent: planner_v1
     inputs: ["task", "git/before_snapshot.json", "git/before.diff"]
 
-  # For scaffold work, coder should be allowed to create multiple files.
-  # We'll drive this by task text + allowlisting derived from file_context once files exist.
+  # Coder uses allowlisting derived from file_context evidence.
   - stage: code_fullfiles
     agent: coder_patch_llm_v1
     inputs:
@@ -44,10 +44,15 @@ pipeline:
       - "files/scripts/build_watch_list.py.txt"
       - "files/dashboard/app.py.txt"
 
+  # IMPORTANT:
+  # Do NOT list proposed/* here. DiffBuilder should only consume the proposed artifacts
+  # that actually exist (produced by code_fullfiles). Listing proposed/* in YAML causes
+  # missing-evidence placeholders when a file isn't modified in a given run.
   - stage: diff_builder
     agent: diff_builder_v1
-    inputs: 
+    inputs:
       - "task"
+      - "files/.gitignore.txt"
       - "files/README.md.txt"
       - "files/docs/PRINCIPLES.md.txt"
       - "files/docs/INJURY_POLICY.md.txt"
@@ -55,19 +60,14 @@ pipeline:
       - "files/scripts/refresh_data.py.txt"
       - "files/scripts/build_watch_list.py.txt"
       - "files/dashboard/app.py.txt"
-      - "proposed/README.md"
-      - "proposed/docs/PRINCIPLES.md"
-      - "proposed/docs/INJURY_POLICY.md"
-      - "proposed/data/injuries.yaml"
-      - "proposed/scripts/refresh_data.py"
-      - "proposed/scripts/build_watch_list.py"
-      - "proposed/dashboard/app.py"
 
+  # ApplyPatch validates patch paths against allowlist evidence.
   - stage: apply
     agent: apply_patch_v1
-    inputs: 
+    inputs:
       - "task"
       - "changes.patch"
+      - "files/.gitignore.txt"
       - "files/README.md.txt"
       - "files/docs/PRINCIPLES.md.txt"
       - "files/docs/INJURY_POLICY.md.txt"
@@ -90,15 +90,14 @@ pipeline:
 
   - stage: manifest
     agent: manifest_v1
-    inputs: [
-        "task",
-        "git/before_snapshot.json",
-        "git/after_snapshot.json",
-        "changes.patch",
-        "test_report.txt",
-        "review.md",
-        "plan.json"
-       ]
+    inputs:
+      - "task"
+      - "git/before_snapshot.json"
+      - "git/after_snapshot.json"
+      - "changes.patch"
+      - "test_report.txt"
+      - "review.md"
+      - "plan.json"
 
 logging:
   runs_dir: "runs"
