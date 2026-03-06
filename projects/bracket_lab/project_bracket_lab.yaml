@@ -23,6 +23,7 @@ pipeline:
       - "data/injuries.yaml"
       - "scripts/refresh_data.py"
       - "scripts/build_watch_list.py"
+      - "scripts/simulate_bracket.py"
       - "dashboard/app.py"
 
   - stage: plan
@@ -42,6 +43,7 @@ pipeline:
       - "files/data/injuries.yaml.txt"
       - "files/scripts/refresh_data.py.txt"
       - "files/scripts/build_watch_list.py.txt"
+      - "files/scripts/simulate_bracket.py.txt"
       - "files/dashboard/app.py.txt"
 
   # IMPORTANT:
@@ -59,6 +61,7 @@ pipeline:
       - "files/data/injuries.yaml.txt"
       - "files/scripts/refresh_data.py.txt"
       - "files/scripts/build_watch_list.py.txt"
+      - "files/scripts/simulate_bracket.py.txt"
       - "files/dashboard/app.py.txt"
 
   # ApplyPatch validates patch paths against allowlist evidence.
