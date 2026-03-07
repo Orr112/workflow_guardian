@@ -37,7 +37,7 @@ class RepoIndexV1(Agent):
 
         payload = {
             "repo_root": str(repo_root),
-            "allowed_path": allowed_path,
+            "allowed_paths": allowed_paths,
         }
 
         rel_allowed = store.write_text("allowed_paths.json", json.dumps(payload, indent=2) + "\n")
