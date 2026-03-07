@@ -10,74 +10,34 @@ pipeline:
     agent: repo_index_v1
     inputs: ["task"]
 
-  # Allowlist source: file_context exports files/<path>(.txt) evidence.
-  # Keep this list relatively stable; prompts can choose any subset without YAML edits.
-  - stage: file_context
-    agent: file_context_v1
-    inputs:
-      - "task"
-      - ".gitignore"
-      - "README.md"
-      - "docs/PRINCIPLES.md"
-      - "docs/INJURY_POLICY.md"
-      - "data/injuries.yaml"
-      - "scripts/refresh_data.py"
-      - "scripts/build_watch_list.py"
-      - "scripts/simulate_bracket.py"
-      - "dashboard/app.py"
-
   - stage: plan
     agent: planner_v1
-    inputs: ["task", "git/before_snapshot.json", "git/before.diff"]
+    inputs:
+      - "task"
+      - "git/before_snapshot.json"
+      - "git/before.diff"
+      - "repo_tree.txt"
+      - "allowed_paths.json"
 
-  # Coder uses allowlisting derived from file_context evidence.
   - stage: code_fullfiles
     agent: coder_patch_llm_v1
     inputs:
       - "task"
       - "repo_tree.txt"
-      - "files/.gitignore.txt"
-      - "files/README.md.txt"
-      - "files/docs/PRINCIPLES.md.txt"
-      - "files/docs/INJURY_POLICY.md.txt"
-      - "files/data/injuries.yaml.txt"
-      - "files/scripts/refresh_data.py.txt"
-      - "files/scripts/build_watch_list.py.txt"
-      - "files/scripts/simulate_bracket.py.txt"
-      - "files/dashboard/app.py.txt"
+      - "allowed_paths.json"
 
-  # IMPORTANT:
-  # Do NOT list proposed/* here. DiffBuilder should only consume the proposed artifacts
-  # that actually exist (produced by code_fullfiles). Listing proposed/* in YAML causes
-  # missing-evidence placeholders when a file isn't modified in a given run.
   - stage: diff_builder
     agent: diff_builder_v1
     inputs:
       - "task"
-      - "files/.gitignore.txt"
-      - "files/README.md.txt"
-      - "files/docs/PRINCIPLES.md.txt"
-      - "files/docs/INJURY_POLICY.md.txt"
-      - "files/data/injuries.yaml.txt"
-      - "files/scripts/refresh_data.py.txt"
-      - "files/scripts/build_watch_list.py.txt"
-      - "files/scripts/simulate_bracket.py.txt"
-      - "files/dashboard/app.py.txt"
+      - "allowed_paths.json"
 
-  # ApplyPatch validates patch paths against allowlist evidence.
   - stage: apply
     agent: apply_patch_v1
     inputs:
       - "task"
       - "changes.patch"
-      - "files/.gitignore.txt"
-      - "files/README.md.txt"
-      - "files/docs/PRINCIPLES.md.txt"
-      - "files/docs/INJURY_POLICY.md.txt"
-      - "files/data/injuries.yaml.txt"
-      - "files/scripts/refresh_data.py.txt"
-      - "files/scripts/build_watch_list.py.txt"
-      - "files/dashboard/app.py.txt"
+      - "allowed_paths.json"
 
   - stage: test
     agent: tester_v1
@@ -85,7 +45,10 @@ pipeline:
 
   - stage: review
     agent: reviewer_v1
-    inputs: ["task", "changes.patch", "test_report.txt"]
+    inputs:
+      - "task"
+      - "changes.patch"
+      - "test_report.txt"
 
   - stage: snapshot_after
     agent: git_snapshot_after_v1
@@ -101,6 +64,10 @@ pipeline:
       - "test_report.txt"
       - "review.md"
       - "plan.json"
+
+  - stage: cleanup_success
+    agent: cleanup_success_v1
+    inputs: ["task"]
 
 logging:
   runs_dir: "runs"

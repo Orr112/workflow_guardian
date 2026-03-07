@@ -11,22 +11,16 @@ from app.runtime.patch_tools import validate_allowed_paths, PatchValidationError
 
 
 def _allowed_paths_from_evidence(evidence: dict[str, object]) -> list[str]:
-    """
-    Accept both:
-      - files/<path>.txt
-      - files/<path>
-    """
-    out: set[str] = set()
-    for k in evidence.keys():
-        if not k.startswith("files/"):
-            continue
-        p = k[len("files/") :]
-        if p.endswith(".txt"):
-            p = p[: -len(".txt")]
-        if not p or p.endswith("/"):
-            continue
-        out.add(p)
-    return sorted(out)
+    raw = evidence.get("allowed_paths.json")
+    if raw is None:
+        raise RuntimeError("ApplyPatchV1: missing allowed_paths.json evidence.")
+    if not isinstance(raw, str):
+        raw = str(raw)
+    payload = json.loads(raw)
+    allowed = payload.get("allowed_path", [])
+    if not isinstance(allowed, list):
+        raise RuntimeError("ApplyPathv1: allowe_paths.json missing allowed_paths list.")
+    return [str(p) for p in allowed]
 
 
 def _run_git_apply(
@@ -70,7 +64,7 @@ class ApplyPatchV1(Agent):
                 "meta": {"noop": True},
              }
 
-        allowed_paths = _allowed_paths_from_evidence(bundle.evidence)
+        allowed_paths = _allowed_paths_from_json(bundle.evidence)
 
         try:
             validate_allowed_paths(patch, allowed=allowed_paths)

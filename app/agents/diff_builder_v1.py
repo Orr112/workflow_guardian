@@ -10,31 +10,16 @@ from app.runtime.context import ContextBundle, RunContext
 
 
 def _allowed_paths_from_evidence(evidence: dict[str, object]) -> list[str]:
-    """
-    Accept both:
-      - files/<path>.txt  (legacy)
-      - files/<path>      (newer / alternate file_context)
-    """
-    out: set[str] = set()
-
-    for k in evidence.keys():
-        if not k.startswith("files/"):
-            continue
-
-        p = k[len("files/") :]
-
-        # Handle both conventions
-        if p.endswith(".txt"):
-            p = p[: -len(".txt")]
-
-        # Ignore empty/dir-like keys
-        if not p or p.endswith("/"):
-            continue
-
-        out.add(p)
-
-    return sorted(out)
-
+    raw = evidence.get("allowed_paths.json")
+    if raw is None:
+        raise RuntimeError("DiffBuilderV1: missing allowed_paths.json evidence.")
+    if not isinstance(raw, str):
+        raw = str(raw)
+    payload = json.loads(raw)
+    allowed = payload.get("allowed_paths", [])
+    if not isinstance(allowed, list):
+        raise RuntimeError("DiffBuilderV1: allowed_paths.json missled allowed_paths list")
+    return [str(p) for p in allowed]
 
 def _proposed_paths_from_evidence(evidence: dict[str, object]) -> list[str]:
     # keys like: proposed/app/engine/gates.py -> app/engine/gates.py
@@ -198,7 +183,7 @@ class DiffBuilderV1(Agent):
     def run(self, ctx: RunContext, bundle: ContextBundle, store: ArtifactStore) -> Dict[str, Any]:
         evidence = bundle.evidence
 
-        allowed_paths = _allowed_paths_from_evidence(evidence)
+        allowed_paths = _allowed_paths_from_json(evidence)
         proposed_paths = _proposed_paths_from_evidence(evidence)
 
         # If YAML no longer enumerates proposed/* inputs, evidence may not include proposed/ keys.

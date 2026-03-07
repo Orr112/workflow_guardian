@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re 
 from typing import Any, Dict
 
@@ -8,31 +9,19 @@ from app.runtime.artifact_store import ArtifactStore
 from app.runtime.context import ContextBundle, RunContext
 
 
-def _allowed_paths_from_evidence_keys(evidence: dict[str, object]) -> list[str]:
-    """
-    Accept both:
-      - files/<path>.txt  (legacy)
-      - files/<path>      (newer / alternate file_context)
-    """
-    out: set[str] = set()
 
-    for k in evidence.keys():
-        if not k.startswith("files/"):
-            continue
+def _allowed_paths_from_json(evidence: dict[str, object]) -> list[str]:
+    raw = evidence.get("allowed_paths.json")
+    if raw is None:
+        raise RuntimeError("Missing allowed_paths.json evidence.")
+    if not isinstance(raw, str):
+        raw = str(raw)
+    payload = json.loads(raw)
+    allowed = payload.get("allowed_paths", [])
+    if not isinstance(allowed, list):
+        raise RuntimeError("allowed_paths.json missing allowed_paths list.")
+    return [str(p) for p in allowed]
 
-        p = k[len("files/") :]
-
-        # Handle both conventions
-        if p.endswith(".txt"):
-            p = p[: -len(".txt")]
-
-        # Ignore empty/dir-like keys
-        if not p or p.endswith("/"):
-            continue
-
-        out.add(p)
-
-    return sorted(out)
 
 
 PATCH_PROMPT = """\
@@ -103,7 +92,7 @@ class CoderPatchLLMV1(Agent):
     ) -> Dict[str, Any]:
 
         repo_tree = bundle.evidence.get("repo_tree.txt", "")
-        allowed_paths = _allowed_paths_from_evidence_keys(bundle.evidence)
+        allowed_paths = _allowed_paths_from_json(bundle.evidence)
 
         if not allowed_paths:
             raise RuntimeError("No allowed paths found (missing file_context evidence).")
