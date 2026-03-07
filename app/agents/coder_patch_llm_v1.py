@@ -14,10 +14,13 @@ def _allowed_paths_from_json(evidence: dict[str, object]) -> list[str]:
     raw = evidence.get("allowed_paths.json")
     if raw is None:
         raise RuntimeError("Missing allowed_paths.json evidence.")
+
     if not isinstance(raw, str):
         raw = str(raw)
+
     payload = json.loads(raw)
     allowed = payload.get("allowed_paths", [])
+
     if not isinstance(allowed, list):
         raise RuntimeError("allowed_paths.json missing allowed_paths list.")
     return [str(p) for p in allowed]
@@ -95,7 +98,7 @@ class CoderPatchLLMV1(Agent):
         allowed_paths = _allowed_paths_from_json(bundle.evidence)
 
         if not allowed_paths:
-            raise RuntimeError("No allowed paths found (missing file_context evidence).")
+            raise RuntimeError("No allowed paths found in allowed_paths.json.")
 
         # Build file context
         file_context_chunks = []
