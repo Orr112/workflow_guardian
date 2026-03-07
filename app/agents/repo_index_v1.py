@@ -40,6 +40,6 @@ class RepoIndexV1(Agent):
             "allowed_path": allowed_path,
         }
 
-        rel_allowed = store.write("allowed_paths.json", json.dumps(payload, indent=2) + "\n")
+        rel_allowed = store.write_text("allowed_paths.json", json.dumps(payload, indent=2) + "\n")
 
         return {"message": "Repo index written", "artifacts": [rel]}
