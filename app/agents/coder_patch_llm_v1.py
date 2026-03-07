@@ -11,7 +11,7 @@ from app.runtime.context import ContextBundle, RunContext
 
 
 def _allowed_paths_from_json(evidence: dict[str, object]) -> list[str]:
-    raw = evidence.get("allowed_paths.json")
+    raw = evidence.get("artifacts/allowed_paths.json")
     if raw is None:
         raise RuntimeError("Missing allowed_paths.json evidence.")
 
