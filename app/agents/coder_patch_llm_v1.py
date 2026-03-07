@@ -11,9 +11,15 @@ from app.runtime.context import ContextBundle, RunContext
 
 
 def _allowed_paths_from_json(evidence: dict[str, object]) -> list[str]:
-    raw = evidence.get("artifacts/allowed_paths.json")
+    if "allowed_paths.json" not in evidence:
+        raise RuntimeError(
+            f"allowed_paths.json key not present in evidence. Keys: {sorted(evidence.keys())}"
+        )
+
+    raw = evidence["allowed_paths.json"]
+
     if raw is None:
-        raise RuntimeError("Missing allowed_paths.json evidence.")
+        raise RuntimeError("allowed_paths.json evidence value is None.")
 
     if not isinstance(raw, str):
         raw = str(raw)
@@ -23,6 +29,7 @@ def _allowed_paths_from_json(evidence: dict[str, object]) -> list[str]:
 
     if not isinstance(allowed, list):
         raise RuntimeError("allowed_paths.json missing allowed_paths list.")
+
     return [str(p) for p in allowed]
 
 
@@ -95,10 +102,11 @@ class CoderPatchLLMV1(Agent):
     ) -> Dict[str, Any]:
 
         rel = store.write_text(
-        "debug/coder_evidence_keys.txt",
-        "\n".join(sorted(bundle.evidence.keys())) + "\n",)
+        "debug/coder_allowed_paths_value.txt",
+        f"type={type(bundle.evidence.get('allowed_paths.json'))}\n"
+        f"repr={repr(bundle.evidence.get('allowed_paths.json'))}\n")
 
-        
+
         repo_tree = bundle.evidence.get("repo_tree.txt", "")
         allowed_paths = _allowed_paths_from_json(bundle.evidence)
 
