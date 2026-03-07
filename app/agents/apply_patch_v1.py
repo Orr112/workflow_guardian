@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from typing import Any, Dict
 
@@ -10,7 +11,7 @@ from app.runtime.git_tools import snapshot
 from app.runtime.patch_tools import validate_allowed_paths, PatchValidationError
 
 
-def _allowed_paths_from_evidence(evidence: dict[str, object]) -> list[str]:
+def _allowed_paths_from_json(evidence: dict[str, object]) -> list[str]:
     raw = evidence.get("allowed_paths.json")
     if raw is None:
         raise RuntimeError("ApplyPatchV1: missing allowed_paths.json evidence.")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import difflib
+import json
 from pathlib import Path
 from typing import Any, Dict
 
@@ -9,7 +10,7 @@ from app.runtime.artifact_store import ArtifactStore
 from app.runtime.context import ContextBundle, RunContext
 
 
-def _allowed_paths_from_evidence(evidence: dict[str, object]) -> list[str]:
+def _allowed_paths_from_json(evidence: dict[str, object]) -> list[str]:
     raw = evidence.get("allowed_paths.json")
     if raw is None:
         raise RuntimeError("DiffBuilderV1: missing allowed_paths.json evidence.")
