@@ -33,7 +33,7 @@ class RepoIndexV1(Agent):
         rel = store.write_text("repo_tree.txt", proc.stdout)
 
         repo_root = Path(ctx.repo_root).resolve()
-        allowed_path = _git_ls_files(repo_root)
+        allowed_paths = _git_ls_files(repo_root)
 
         payload = {
             "repo_root": str(repo_root),
