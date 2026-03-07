@@ -11,16 +11,30 @@ from app.runtime.git_tools import snapshot
 from app.runtime.patch_tools import validate_allowed_paths, PatchValidationError
 
 
+import json
+
 def _allowed_paths_from_json(evidence: dict[str, object]) -> list[str]:
-    raw = evidence.get("allowed_paths.json")
+    if "allowed_paths.json" not in evidence:
+        raise RuntimeError(
+            f"allowed_paths.json key not present in evidence. Keys: {sorted(evidence.keys())}"
+        )
+
+    raw = evidence["allowed_paths.json"]
     if raw is None:
-        raise RuntimeError("ApplyPatchV1: missing allowed_paths.json evidence.")
+        raise RuntimeError("allowed_paths.json evidence value is None.")
+
     if not isinstance(raw, str):
         raw = str(raw)
+
     payload = json.loads(raw)
-    allowed = payload.get("allowed_path", [])
+
+    allowed = payload.get("allowed_paths")
+    if allowed is None:
+        allowed = payload.get("allowed_path", [])
+
     if not isinstance(allowed, list):
-        raise RuntimeError("ApplyPathv1: allowe_paths.json missing allowed_paths list.")
+        raise RuntimeError("allowed_paths.json missing allowed_paths list.")
+
     return [str(p) for p in allowed]
 
 
