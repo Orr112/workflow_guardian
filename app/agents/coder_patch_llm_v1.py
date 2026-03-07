@@ -101,11 +101,6 @@ class CoderPatchLLMV1(Agent):
         store: ArtifactStore,
     ) -> Dict[str, Any]:
 
-        rel = store.write_text(
-        "debug/coder_allowed_paths_value.txt",
-        f"type={type(bundle.evidence.get('allowed_paths.json'))}\n"
-        f"repr={repr(bundle.evidence.get('allowed_paths.json'))}\n")
-
 
         repo_tree = bundle.evidence.get("repo_tree.txt", "")
         allowed_paths = _allowed_paths_from_json(bundle.evidence)
