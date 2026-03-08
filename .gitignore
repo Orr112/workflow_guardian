@@ -39,3 +39,6 @@ review_log.jsonl
 
 # OS junk
 .DS_Store.DS_Store
+
+# Prompts
+prompts/
