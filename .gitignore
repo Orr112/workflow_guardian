@@ -42,3 +42,4 @@ review_log.jsonl
 
 # Prompts
 prompts/
+run_prompt.sh
