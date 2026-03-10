@@ -20,7 +20,7 @@ pipeline:
       - "allowed_paths.json"
 
   - stage: code_fullfiles
-    agent: coder_patch_llm_v1
+    agent: coder_repo_aware_v1
     inputs:
       - "task"
       - "repo_tree.txt"
