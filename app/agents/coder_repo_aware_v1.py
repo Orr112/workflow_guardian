@@ -296,7 +296,23 @@ class CoderRepoAwareV1(Agent):
                         temperature=temperature,
                         messages=[{"role": "user", "content": p}],
                     )
-                    return _extract_text(resp)
+                    #Debug
+                    store.write_text(
+                        "debug/llm_response_meta.txt",
+                        f"stop_reason={getattr(resp, 'stop_reason', None)}\n"
+                        f"model={getattr(resp, 'model', None)}\n"
+                        f"usage={getattr(resp, 'usage', None)}\n"
+                    )
+
+                    raw_text = _extract_text(resp)
+                    store.write_text(
+                        "debug/llm_response_tail.txt",
+                        f"chars={len(raw_text)}\n\nLAST_1000_CHARS:\n{raw_text[-1000:]}\n"
+                    )
+                    return raw_text
+                    # end of debug
+
+                    #return _extract_text(resp)
                 except Exception as e:
                     msg = str(e).lower()
                     is_retryable = (
@@ -308,7 +324,14 @@ class CoderRepoAwareV1(Agent):
                     if attempt == retries - 1 or not is_retryable:
                         raise
                     time.sleep((2 ** attempt) + random.random())
-
+        # Debug
+        store.write_text(
+                "debug/prompt_debug.txt",
+                f"selected_paths={selected_paths}\n"
+                f"prompt_chars={len(prompt)}\n"
+                f"file_context_chars={len(file_context)}\n"
+                )
+        # end Debug
         raw = _call_llm(prompt, temperature=0.2)
 
         try:
