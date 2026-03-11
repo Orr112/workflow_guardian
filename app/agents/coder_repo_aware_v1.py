@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import re
 import time
@@ -209,6 +210,39 @@ def _parse_file_blocks(text: str) -> dict[str, str]:
 
     return blocks
 
+def _looks_truncated_python(content: str) -> bool:
+    stripped = content.rstrip()
+
+    if not stripped:
+        return False
+
+    bad_suffixes = ("(", "[", "{", ":", "\\", '"""', "'''")
+    if stripped.endswith(bad_suffixes):
+        return True
+
+    tail = stripped.splitlines()[-1]
+    if tail.count('"') % 2 != 0:
+        return True
+    if tail.count("'") % 2 != 0:
+        return True
+
+    return False
+
+def _validate_proposed_blocks(blocks: dict[str, str]) -> None:
+    """
+    Validate generated file contents before writing proposed artifacts.
+    Currently enforces Python syntax correctness for*.py files.
+    """
+    for path, content in blocks.items():
+        if path.endswith(".py"):
+            if _looks_truncated_python(content):
+                raise RuntimeError(f"Generated Python for {path} appears truncated.")
+
+            try:
+                ast.parse(content, filename=path)
+            except SyntaxError as e:
+                raise RuntimeError(f"Generated invalid python for {path}: {e}") from e
+
 
 class CoderRepoAwareV1(Agent):
     def run(
@@ -279,19 +313,33 @@ class CoderRepoAwareV1(Agent):
 
         try:
             blocks = _parse_file_blocks(raw)
-        except ValueError:
+            _validate_proposed_blocks(blocks)
+        except (ValueError, RuntimeError) as e:
             store.write_text("git/invalid_fullfile_raw.txt", raw + "\n")
+            store.write_text("git/invalid_fullfile_error.txt", f"{type(e).__name__}: {e}\n")
 
             retry_prompt = (
-                "You did not follow the FILE BLOCK FORMAT.\n"
-                "Return ONLY FILE blocks exactly like:\n"
-                "FILE: <path>\\n<full file contents>\n"
-                "No commentary. No markdown. No explanations.\n\n"
+                "Your previous output was invalid.\n"
+                "Requirements:\n"
+                "- Return ONLY FILE blocks exactly like:\n"
+                "  FILE: <path>\\n<full file contents>\n"
+                "- No commentary.\n"
+                "- No markdown.\n"
+                "- No placeholder comments.\n"
+                "- No pass statements unless they already existed in the source file.\n"
+                "- Ensure every Python file is complete and syntactically valid.\n"
+                "- Do not truncate the file.\n\n"
                 + prompt
             )
             raw2 = _call_llm(retry_prompt, temperature=0.0)
             store.write_text("git/invalid_fullfile_retry_raw.txt", raw2 + "\n")
-            blocks = _parse_file_blocks(raw2)
+
+            try:
+                blocks = _parse_file_blocks(raw2)
+                _validate_proposed_blocks(blocks)
+            except (ValueError, RuntimeError) as e2:
+                store.write_text("git/invalid_fullfile_retry_error.txt", f"{type(e2).__name__}: {e2}\n")
+                raise
 
         allowed_set = set(allowed_paths)
         bad_paths = sorted([p for p in blocks.keys() if p not in allowed_set])
