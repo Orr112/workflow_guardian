@@ -11,7 +11,6 @@ from app.runtime.git_tools import snapshot
 from app.runtime.patch_tools import validate_allowed_paths, PatchValidationError
 
 
-import json
 
 def _allowed_paths_from_json(evidence: dict[str, object]) -> list[str]:
     if "allowed_paths.json" not in evidence:

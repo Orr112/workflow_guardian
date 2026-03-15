@@ -6,7 +6,7 @@ import re
 import time
 import random
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from app.agents.base import Agent
 from app.runtime.artifact_store import ArtifactStore

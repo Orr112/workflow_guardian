@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -19,12 +20,51 @@ class PipelineStep:
     stage: str
     agent: str
     inputs: list[str] | None = None
+    repo_visibility: str | None = None
+    can_write: bool = False
 
 def _read_evidence(run_dir: Path, rel_path: str) -> str:
     p = run_dir / rel_path
     if not p.exists():
         return f"[missing evidence: {rel_path}]"
     return p.read_text(encoding="utf-8")
+
+
+def write_context_manifest(
+    *,
+    run_dir: Path,
+    artifacts_dirname: str,
+    stage: str,
+    agent: str,
+    task: str,
+    declared_inputs: list[str],
+    resolved_inputs: Dict[str, str],
+    produced_artifacts: list[str],
+    repo_visibility: str | None,
+    can_write: bool,
+    meta: Dict[str, Any] | None = None,
+) -> str:
+    context_dir = run_dir / artifacts_dirname / "context"
+    context_dir.mkdir(parents=True, exist_ok=True)
+
+    payload = {
+        "stage": stage,
+        "agent": agent,
+        "task": task,
+        "declared_inputs": declared_inputs,
+        "resolved_inputs": resolved_inputs,
+        "produced_artifacts": produced_artifacts,
+        "repo_visibility": repo_visibility or "default",
+        "can_write": can_write,
+        "meta": meta or {},
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+    out_path = context_dir / f"{stage}.json"
+    out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    return f"{artifacts_dirname}/context/{stage}.json"
+
 
 def new_run_id() -> str:
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -34,6 +74,7 @@ def new_run_id() -> str:
 
 def load_project_pack(path: Path) -> Dict[str, Any]:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
+
 
 
 def run_pipeline(
@@ -91,15 +132,18 @@ def run_pipeline(
             # 1) Build allowlisted evidence bundle from PRIOR artifacts
             inputs = step.inputs or ["task"]
             evidence: Dict[str, Any] = {}
+            resolved_inputs: Dict[str, str] = {}
 
             for item in inputs:
                 if item == "task":
+                    resolved_inputs[item] = "[inline task]"
                     continue
 
                 rel = ctx.evidence_index.get(item)
                 if rel is None:
                     rel = f"{artifacts_dirname}/{item}"
 
+                resolved_inputs[item] = rel
                 evidence[item] = _read_evidence(run_dir, rel)
 
             bundle = ContextBundle(
@@ -116,10 +160,28 @@ def run_pipeline(
 
             msg = produced.get("message", "ok")
             new_artifacts = produced.get("artifacts", [])
-            ctx.artifacts.extend(new_artifacts)
+            produced_meta = produced.get("meta")
+
+            context_artifact = write_context_manifest(
+                run_dir=run_dir,
+                artifacts_dirname=artifacts_dirname,
+                stage=step.stage,
+                agent=agent_key,
+                task=ctx.task,
+                declared_inputs=inputs,
+                resolved_inputs=resolved_inputs,
+                produced_artifacts=new_artifacts,
+                repo_visibility=step.repo_visibility,
+                can_write=step.can_write,
+                meta=produced_meta,
+            )
+
+            all_stage_artifacts = [*new_artifacts, context_artifact]
+            ctx.artifacts.extend(all_stage_artifacts)
+
 
             # 3) Register newly produced artifacts for later stages
-            for rel in new_artifacts:
+            for rel in all_stage_artifacts:
                 key = rel.split("/", 1)[-1]  # drop "artifacts/"
                 ctx.evidence_index[key] = rel
 
@@ -132,8 +194,8 @@ def run_pipeline(
                 timestamp=logger.now_iso(),
                 status="ok",
                 message=msg,
-                artifacts=new_artifacts,
-                meta=produced.get("meta"),
+                artifacts=all_stage_artifacts,
+                meta=produced_meta,
             )
             logger.append(event)
 

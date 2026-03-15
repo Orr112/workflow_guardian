@@ -12,6 +12,8 @@ pipeline:
 
   - stage: plan
     agent: planner_v1
+    repo_visibility: "repo_map"
+    can_write: false
     inputs:
       - "task"
       - "git/before_snapshot.json"
@@ -21,34 +23,33 @@ pipeline:
 
   - stage: code_fullfiles
     agent: coder_repo_aware_v1
+    repo_visibility: "task_local"
+    can_write: true
     inputs:
       - "task"
+      - "plan.json"
       - "repo_tree.txt"
-      - "allowed_paths.json"
-
-  - stage: diff_builder
-    agent: diff_builder_v1
-    inputs:
-      - "task"
-      - "allowed_paths.json"
-
-  - stage: apply
-    agent: apply_patch_v1
-    inputs:
-      - "task"
-      - "changes.patch"
       - "allowed_paths.json"
 
   - stage: test
     agent: tester_v1
-    inputs: ["task"]
+    repo_visibility: "changed_files"
+    can_write: false
+    inputs:
+      - "task"
+      - "plan.json"
+      - "changes.patch"
 
   - stage: review
     agent: reviewer_v1
+    repo_visibility: "diff_only"
+    can_write: false
     inputs:
       - "task"
+      - "plan.json"
       - "changes.patch"
       - "test_report.txt"
+
 
   - stage: snapshot_after
     agent: git_snapshot_after_v1
