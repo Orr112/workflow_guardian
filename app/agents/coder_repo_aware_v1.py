@@ -90,6 +90,19 @@ def _load_json_maybe(value: Any) -> dict:
     raise TypeError(f"Unsupported JSON evidence type: {type(value)}")
 
 
+def _normalize_paths(paths: list[str]) -> list[str]:
+    seen = set()
+    out = []
+    for p in paths:
+        if not p:
+            continue
+        norm = p.strip().lstrip("./")
+        if norm and norm not in seen:
+            seen.add(norm)
+            out.append(norm)
+    return out
+
+
 def _normalize_path_token(token: str) -> str:
     token = token.strip().strip('"').strip("'").strip()
     token = token.lstrip("./")
