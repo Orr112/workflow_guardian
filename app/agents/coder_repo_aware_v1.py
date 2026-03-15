@@ -196,14 +196,32 @@ def _select_candidate_files(task: str, allowed_paths: list[str], repo_tree: str)
 
 
 def _read_repo_file(repo_root: Path, rel_path: str) -> str:
-    path = (repo_root / rel_path).resolve()
-    try:
-        content = path.read_text(encoding="utf-8")
-    except FileNotFoundError:
+    path = repo_root / rel_path
+
+    if not path.exists() or not path.is_file():
         return ""
-    if content and not content.endswith("\n"):
-        content += "\n"
-    return content
+
+    # Skip obvious binary extensions
+    binary_ext = {
+        ".xlsx", ".xls", ".xlsm",
+        ".png", ".jpg", ".jpeg", ".gif",
+        ".pdf", ".zip", ".tar", ".gz",
+        ".pyc", ".pyo", ".so", ".dylib",
+        ".db", ".sqlite", ".parquet"
+    }
+
+    if path.suffix.lower() in binary_ext:
+        return f"[binary file skipped: {rel_path}]"
+
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        # Fallback for files with unexpected encoding
+        try:
+            return path.read_text(encoding="latin-1")
+        except Exception:
+            return f"[unreadable file skipped: {rel_path}]"
+
 
 
 def _build_file_context(repo_root: Path, selected_paths: list[str]) -> str:
