@@ -35,7 +35,10 @@ class RepoIndexV1(Agent):
         repo_root = Path(ctx.repo_root).resolve()
         allowed_paths = _git_ls_files(repo_root)
 
-        extra_allowed_prefixes = [ "docs/"]
+        # Safe zone for generated documentation / analysis artifacts
+        extra_allowed_prefixes = [
+            "docs/",
+        ]
 
         allowed_paths = sorted(set(allowed_paths + extra_allowed_prefixes))
 

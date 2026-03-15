@@ -77,6 +77,20 @@ def _allowed_paths_from_json(evidence: dict[str, object]) -> list[str]:
 
     return sorted(set(str(p) for p in allowed))
 
+
+def _is_allowed_path(path: str, allowed_paths: list[str]) -> bool:
+    norm = path.strip().lstrip("./")
+    for allowed in allowed_paths:
+        allowed_norm = allowed.strip().lstrip("./")
+        if allowed_norm.endswith("/"):
+            if norm.startswith(allowed_norm):
+                return True
+        elif norm == allowed_norm:
+            return True
+    return False
+
+
+
 def _load_json_maybe(value: Any) -> dict:
     if value is None:
         return {}
@@ -421,8 +435,7 @@ class CoderRepoAwareV1(Agent):
                 store.write_text("git/invalid_fullfile_retry_error.txt", f"{type(e2).__name__}: {e2}\n")
                 raise
 
-        allowed_set = set(allowed_paths)
-        bad_paths = sorted([p for p in blocks.keys() if p not in allowed_set])
+        bad_paths = sorted([p for p in blocks.keys() if not _is_allowed_path(p, allowed_paths)])
         if bad_paths:
             rel = store.write_text(
                 "git/fullfile_validation_error.txt",
