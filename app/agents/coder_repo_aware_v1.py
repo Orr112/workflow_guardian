@@ -293,6 +293,22 @@ class CoderRepoAwareV1(Agent):
         proposed_paths = _normalize_paths(plan.get("proposed_paths", []) or [])
         validation_plan = plan.get("validation_plan", []) or []
 
+        planned_paths = []
+        for path in [*selected_paths, *proposed_paths]:
+            if path not in planned_paths:
+                planned_paths.append(path)
+
+        if planned_paths:
+            candidate_paths = planned_paths
+        else:
+            candidate_paths = self._select_candidate_files(task, repo_tree, allowed_paths)
+            candidate_paths = _normalize_paths(candidate_paths)
+            selection_source = "auto"
+
+        allowed_set = set(allowed_paths)
+        filtered_paths = [p for p in candidate_paths if p in allowed_set]
+        rejected_paths = [p for p in candidate_paths if p not in allowed_set]
+
         if planned_paths and not filtered_paths:
             raise ValueError(
                 "planner selected files, but none are inside allowed_paths.json. "
