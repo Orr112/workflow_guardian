@@ -289,19 +289,20 @@ class CoderRepoAwareV1(Agent):
         allowed_paths = allowed_data.get("allowed_paths", []) or []
         allowed_paths = _normalize_paths(allowed_paths)
 
-        selected_paths = _normalize_paths(plan.get("selected_paths", []) or [])
-        proposed_paths = _normalize_paths(plan.get("proposed_paths", []) or [])
+        planned_selected_paths = _normalize_paths(plan.get("selected_paths", []) or [])
+        planned_proposed_paths = _normalize_paths(plan.get("proposed_paths", []) or [])
         validation_plan = plan.get("validation_plan", []) or []
 
         planned_paths = []
-        for path in [*selected_paths, *proposed_paths]:
+        for path in [*planned_selected_paths, *planned_proposed_paths]:
             if path not in planned_paths:
                 planned_paths.append(path)
 
         if planned_paths:
             candidate_paths = planned_paths
+            selection_source = "plan"
         else:
-            candidate_paths = self._select_candidate_files(task, repo_tree, allowed_paths)
+            candidate_paths = _select_candidate_files(task, allowed_paths, repo_tree)
             candidate_paths = _normalize_paths(candidate_paths)
             selection_source = "auto"
 
@@ -315,20 +316,17 @@ class CoderRepoAwareV1(Agent):
                 f"planned={planned_paths} rejected={rejected_paths}"
             )
 
-        # load only filtered_paths into context
-        file_context = self._build_file_context(filtered_paths, store)
-        file_context_chars = len(file_context)
-
         if not allowed_paths:
             raise RuntimeError("No allowed paths found in allowed_paths.json.")
 
-        selected_paths = _select_candidate_files(bundle.task, allowed_paths, repo_tree)
+        if not filtered_paths:
+            raise RuntimeError("No candidate files selected from task/plan and allowed paths.")
 
-        if not selected_paths:
-            raise RuntimeError("No candidate files selected from task and allowed paths.")
+        file_context = _build_file_context(repo_root, filtered_paths)
+        file_context_chars = len(file_context)
 
-        file_context = _build_file_context(repo_root, selected_paths)
         allowed_paths_str = "\n".join(f"- {p}" for p in allowed_paths)
+
 
         prompt = REPO_AWARE_PROMPT.format(
             task=bundle.task,
@@ -360,10 +358,7 @@ class CoderRepoAwareV1(Agent):
                         temperature=temperature,
                         messages=[{"role": "user", "content": p}],
                     )
-                    #Debug
- 
-
-                    #return _extract_text(resp)
+                    return _extract_text(resp)
                 except Exception as e:
                     msg = str(e).lower()
                     is_retryable = (
@@ -375,14 +370,7 @@ class CoderRepoAwareV1(Agent):
                     if attempt == retries - 1 or not is_retryable:
                         raise
                     time.sleep((2 ** attempt) + random.random())
-        # Debug
-        store.write_text(
-                "debug/prompt_debug.txt",
-                f"selected_paths={selected_paths}\n"
-                f"prompt_chars={len(prompt)}\n"
-                f"file_context_chars={len(file_context)}\n"
-                )
-        # end Debug
+
         raw = _call_llm(prompt, temperature=0.2)
 
         try:
@@ -430,23 +418,23 @@ class CoderRepoAwareV1(Agent):
             artifacts.append(rel)
 
         ctx.private.setdefault("coder_repo_aware_v1", {})
-        ctx.private["coder_repo_aware_v1"]["selected_paths"] = selected_paths
+        ctx.private["coder_repo_aware_v1"]["selected_paths"] = filtered_paths
         ctx.private["coder_repo_aware_v1"]["proposed_files"] = sorted(blocks.keys())
         ctx.private["coder_repo_aware_v1"]["patch_is_empty"] = len(blocks) == 0
 
 
 
         return {
-        "message": f"Prepared {len(filtered_paths)} proposed file(s)",
-        "artifacts": produced_artifacts,
-        "meta": {
-            "selection_source": selection_source,
-            "selected_paths": filtered_paths,
-            "planned_selected_paths": selected_paths,
-            "planned_proposed_paths": proposed_paths,
-            "rejected_paths": rejected_paths,
-            "allowed_paths_count": len(allowed_paths),
-            "validation_plan": validation_plan,
-            "file_context_chars": file_context_chars,
-        },
-    }
+            "message": f"Prepared {len(filtered_paths)} proposed file(s)",
+            "artifacts": artifacts,
+            "meta": {
+                "selection_source": selection_source,
+                "selected_paths": filtered_paths,
+                "planned_selected_paths": planned_selected_paths,
+                "planned_proposed_paths": planned_proposed_paths,
+                "rejected_paths": rejected_paths,
+                "allowed_paths_count": len(allowed_paths),
+                "validation_plan": validation_plan,
+                "file_context_chars": file_context_chars,
+            },
+        }
