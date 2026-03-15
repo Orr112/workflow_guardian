@@ -77,6 +77,18 @@ def _allowed_paths_from_json(evidence: dict[str, object]) -> list[str]:
 
     return sorted(set(str(p) for p in allowed))
 
+def _load_json_maybe(value: Any) -> dict:
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return {}
+        return json.loads(value)
+    raise TypeError(f"Unsupported JSON evidence type: {type(value)}")
+
 
 def _normalize_path_token(token: str) -> str:
     token = token.strip().strip('"').strip("'").strip()
@@ -251,9 +263,32 @@ class CoderRepoAwareV1(Agent):
         bundle: ContextBundle,
         store: ArtifactStore,
     ) -> Dict[str, Any]:
+        task = bundle.task
+
         repo_root = Path(ctx.repo_root).resolve()
         repo_tree = bundle.evidence.get("repo_tree.txt", "")
-        allowed_paths = _allowed_paths_from_json(bundle.evidence)
+        allowed_paths_payload = bundle.evidence.get("allowed_paths.json", {})
+        plan_payload = bundle.evidence.get("plan.json", {})
+        
+        plan = _load_json_maybe(plan_payload)
+        allowed_data = _load_json_maybe(allowed_paths_payload)
+
+        allowed_paths = allowed_data.get("allowed_paths", []) or []
+        allowed_paths = _normalize_paths(allowed_paths)
+
+        selected_paths = _normalize_paths(plan.get("selected_paths", []) or [])
+        proposed_paths = _normalize_paths(plan.get("proposed_paths", []) or [])
+        validation_plan = plan.get("validation_plan", []) or []
+
+        if planned_paths and not filtered_paths:
+            raise ValueError(
+                "planner selected files, but none are inside allowed_paths.json. "
+                f"planned={planned_paths} rejected={rejected_paths}"
+            )
+
+        # load only filtered_paths into context
+        file_context = self._build_file_context(filtered_paths, store)
+        file_context_chars = len(file_context)
 
         if not allowed_paths:
             raise RuntimeError("No allowed paths found in allowed_paths.json.")
@@ -297,20 +332,7 @@ class CoderRepoAwareV1(Agent):
                         messages=[{"role": "user", "content": p}],
                     )
                     #Debug
-                    store.write_text(
-                        "debug/llm_response_meta.txt",
-                        f"stop_reason={getattr(resp, 'stop_reason', None)}\n"
-                        f"model={getattr(resp, 'model', None)}\n"
-                        f"usage={getattr(resp, 'usage', None)}\n"
-                    )
-
-                    raw_text = _extract_text(resp)
-                    store.write_text(
-                        "debug/llm_response_tail.txt",
-                        f"chars={len(raw_text)}\n\nLAST_1000_CHARS:\n{raw_text[-1000:]}\n"
-                    )
-                    return raw_text
-                    # end of debug
+ 
 
                     #return _extract_text(resp)
                 except Exception as e:
@@ -383,15 +405,19 @@ class CoderRepoAwareV1(Agent):
         ctx.private["coder_repo_aware_v1"]["proposed_files"] = sorted(blocks.keys())
         ctx.private["coder_repo_aware_v1"]["patch_is_empty"] = len(blocks) == 0
 
-        meta = {
-            "allowed_paths_count": len(allowed_paths),
-            "selected_paths": selected_paths,
-            "proposed_paths": sorted(blocks.keys()),
-            "file_context_chars": len(file_context),
-        }
+
 
         return {
-            "message": "Repo-aware LLM proposed full-file updates",
-            "artifacts": artifacts,
-            "meta": meta,
-        }
+        "message": f"Prepared {len(filtered_paths)} proposed file(s)",
+        "artifacts": produced_artifacts,
+        "meta": {
+            "selection_source": selection_source,
+            "selected_paths": filtered_paths,
+            "planned_selected_paths": selected_paths,
+            "planned_proposed_paths": proposed_paths,
+            "rejected_paths": rejected_paths,
+            "allowed_paths_count": len(allowed_paths),
+            "validation_plan": validation_plan,
+            "file_context_chars": file_context_chars,
+        },
+    }
