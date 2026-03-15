@@ -1,0 +1,91 @@
+project: rate_compare_analysis
+repo_root: "/Users/omarrodriguez/Documents/projects/my_benefits_project"
+
+pipeline:
+  - stage: snapshot_before
+    agent: git_snapshot_before_v1
+    repo_visibility: "none"
+    can_write: false
+    inputs: ["task"]
+
+  - stage: repo_index
+    agent: repo_index_v1
+    repo_visibility: "repo_map"
+    can_write: false
+    inputs: ["task"]
+
+  - stage: plan
+    agent: planner_v1
+    repo_visibility: "repo_map"
+    can_write: false
+    inputs:
+      - "task"
+      - "git/before_snapshot.json"
+      - "git/before.diff"
+      - "repo_tree.txt"
+      - "allowed_paths.json"
+
+  - stage: code_fullfiles
+    agent: coder_repo_aware_v1
+    repo_visibility: "task_local"
+    can_write: false
+    inputs:
+      - "task"
+      - "plan.json"
+      - "repo_tree.txt"
+      - "allowed_paths.json"
+
+  - stage: diff_builder
+    agent: diff_builder_v1
+    repo_visibility: "task_local"
+    can_write: false
+    inputs:
+      - "task"
+      - "plan.json"
+      - "allowed_paths.json"
+
+  - stage: apply
+    agent: apply_patch_v1
+    repo_visibility: "task_local"
+    can_write: false
+    inputs:
+      - "task"
+      - "changes.patch"
+      - "allowed_paths.json"
+
+  - stage: review
+    agent: reviewer_v1
+    repo_visibility: "diff_only"
+    can_write: false
+    inputs:
+      - "task"
+      - "plan.json"
+      - "changes.patch"
+
+  - stage: snapshot_after
+    agent: git_snapshot_after_v1
+    repo_visibility: "none"
+    can_write: false
+    inputs: ["task"]
+
+  - stage: manifest
+    agent: manifest_v1
+    repo_visibility: "artifacts_only"
+    can_write: false
+    inputs:
+      - "task"
+      - "git/before_snapshot.json"
+      - "git/after_snapshot.json"
+      - "changes.patch"
+      - "review.md"
+      - "plan.json"
+
+  - stage: cleanup_success
+    agent: cleanup_success_v1
+    repo_visibility: "none"
+    can_write: false
+    inputs: ["task"]
+
+logging:
+  runs_dir: "runs"
+  artifacts_dirname: "artifacts"
