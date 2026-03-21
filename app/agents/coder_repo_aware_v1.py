@@ -78,6 +78,23 @@ def _allowed_paths_from_json(evidence: dict[str, object]) -> list[str]:
     return sorted(set(str(p) for p in allowed))
 
 
+def _read_repo_file(repo_root: Path, rel_path: str) -> str:
+    """
+    Safely read a file from the repository.
+    """
+    path = (repo_root / rel_path).resolve()
+
+    if not path.exists():
+        raise FileNotFoundError(f"File not found in repo: {rel_path}")
+
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        # fallback for weird encodings
+        return path.read_text(errors="replace")
+
+
+
 def _is_allowed_path(path: str, allowed_paths: list[str]) -> bool:
     norm = path.strip().lstrip("./")
     for allowed in allowed_paths:
