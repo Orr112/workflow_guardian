@@ -224,7 +224,7 @@ def _extract_explicit_targets(task: str, allowed_paths: list[str]) -> list[str]:
     if not targets:
         for path in allowed_paths:
             if path.endswith("/"):
-            continue
+                continue
 
     return targets
 
