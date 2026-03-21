@@ -38,6 +38,13 @@ pipeline:
       - "plan.json"
       - "allowed_paths.json"
 
+  - stage: apply
+    agent: apply_patch_v1
+    inputs:
+    - "task"
+    - "changes.patch"
+    - "allowed_paths.json"
+
   - stage: test
     agent: tester_v1
     repo_visibility: "changed_files"

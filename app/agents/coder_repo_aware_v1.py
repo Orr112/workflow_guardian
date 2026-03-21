@@ -79,19 +79,36 @@ def _allowed_paths_from_json(evidence: dict[str, object]) -> list[str]:
 
 
 def _read_repo_file(repo_root: Path, rel_path: str) -> str:
-    """
-    Safely read a file from the repository.
-    """
     path = (repo_root / rel_path).resolve()
 
     if not path.exists():
-        raise FileNotFoundError(f"File not found in repo: {rel_path}")
+        return ""
+
+    if path.is_dir():
+        return f"[directory skipped: {rel_path}]"
+
+    binary_ext = {
+        ".xlsx", ".xls", ".xlsm",
+        ".png", ".jpg", ".jpeg", ".gif",
+        ".pdf", ".zip", ".tar", ".gz",
+        ".pyc", ".pyo", ".so", ".dylib",
+        ".db", ".sqlite", ".parquet",
+    }
+
+    if path.suffix.lower() in binary_ext:
+        return f"[binary file skipped: {rel_path}]"
 
     try:
-        return path.read_text(encoding="utf-8")
+        content = path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
-        # fallback for weird encodings
-        return path.read_text(errors="replace")
+        try:
+            content = path.read_text(encoding="latin-1")
+        except Exception:
+            return f"[unreadable file skipped: {rel_path}]"
+
+    if content and not content.endswith("\n"):
+        content += "\n"
+    return content
 
 
 
@@ -206,8 +223,8 @@ def _extract_explicit_targets(task: str, allowed_paths: list[str]) -> list[str]:
     # fallback: direct mentions anywhere in task
     if not targets:
         for path in allowed_paths:
-            if path in task and path not in targets:
-                targets.append(path)
+            if path.endswith("/"):
+            continue
 
     return targets
 
@@ -383,8 +400,13 @@ class CoderRepoAwareV1(Agent):
             selection_source = "auto"
 
         allowed_set = set(allowed_paths)
-        filtered_paths = [p for p in candidate_paths if p in allowed_set]
-        rejected_paths = [p for p in candidate_paths if p not in allowed_set]
+        filtered_paths = [
+            p for p in candidate_paths
+            if _is_allowed_path(p, allowed_paths) and not p.endswith("/")]
+        
+        rejected_paths = [
+            p for p in candidate_paths
+            if not _is_allowed_path(p, allowed_paths)]
 
         selected_paths = filtered_paths
 
