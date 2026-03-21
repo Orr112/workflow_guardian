@@ -31,6 +31,13 @@ pipeline:
       - "repo_tree.txt"
       - "allowed_paths.json"
 
+  - stage: diff_builder
+    agent: diff_builder_v1
+    inputs:
+      - "task"
+      - "plan.json"
+      - "allowed_paths.json"
+
   - stage: test
     agent: tester_v1
     repo_visibility: "changed_files"

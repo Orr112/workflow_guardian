@@ -117,6 +117,44 @@ def _normalize_paths(paths: list[str]) -> list[str]:
     return out
 
 
+def _is_generated_or_non_source_path(path: str) -> bool:
+    """
+    Exclude generated artifacts and data files from coder context selection.
+    These files may exist in the repo, but the coder should not use them as
+    editable/source context unless they are explicitly targeted.
+    """
+    generated_prefixes = (
+        "runs/",
+    )
+
+    non_source_prefixes = (
+        "data/",
+    )
+
+    source_suffixes = (
+        ".py",
+        ".md",
+        ".yaml",
+        ".yml",
+        ".json",
+        ".toml",
+        ".sh",
+    )
+
+    if path.startswith(generated_prefixes):
+        return True
+
+    # Keep only source-like files out of data/ by default
+    if path.startswith(non_source_prefixes):
+        return True
+
+    if not path.endswith(source_suffixes):
+        return True
+
+    return False
+
+
+
 def _normalize_path_token(token: str) -> str:
     token = token.strip().strip('"').strip("'").strip()
     token = token.lstrip("./")
@@ -142,20 +180,17 @@ def _extract_explicit_targets(task: str, allowed_paths: list[str]) -> list[str]:
         block = match.group(1)
         lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
         for line in lines:
-            # split on commas / "and" for inline lists
             parts = re.split(r",|\band\b", line)
             for part in parts:
                 p = _normalize_path_token(part)
                 if p in allowed_set and p not in targets:
                     targets.append(p)
 
-    if targets:
-        return targets
-
     # fallback: direct mentions anywhere in task
-    for path in allowed_paths:
-        if path in task and path not in targets:
-            targets.append(path)
+    if not targets:
+        for path in allowed_paths:
+            if path in task and path not in targets:
+                targets.append(path)
 
     return targets
 
@@ -180,18 +215,24 @@ def _score_candidate_path(path: str, task: str) -> int:
 
 
 def _select_candidate_files(task: str, allowed_paths: list[str], repo_tree: str) -> list[str]:
-    """
-    Heuristic selection:
-    1. Honor explicit "Modify ONLY" paths if present
-    2. Otherwise choose paths mentioned in the task
-    3. Otherwise score likely relevant files and take a small set
-    """
     explicit = _extract_explicit_targets(task, allowed_paths)
     if explicit:
         return explicit
 
+    # filter OUT runs/ and data/
+    filtered_allowed = [p for p in allowed_paths if not _is_generated_or_non_source_path(p)]
+
+    # pick files mentioned directly
+    mentioned = []
+    for path in filtered_allowed:
+        if path in task and path not in mentioned:
+            mentioned.append(path)
+    if mentioned:
+        return mentioned
+
+    # score remaining
     scored = []
-    for path in allowed_paths:
+    for path in filtered_allowed:
         score = _score_candidate_path(path, task)
         if score > 0:
             scored.append((score, path))
@@ -200,41 +241,7 @@ def _select_candidate_files(task: str, allowed_paths: list[str], repo_tree: str)
         scored.sort(reverse=True)
         return [p for _, p in scored[:8]]
 
-    # final fallback: a small set from top-level files likely to matter
-    preferred_prefixes = ("scripts/", "src/", "app/", "dashboard/", "docs/")
-    fallback = [p for p in allowed_paths if p.startswith(preferred_prefixes)]
-    if fallback:
-        return fallback[:8]
-
-    return allowed_paths[:8]
-
-
-def _read_repo_file(repo_root: Path, rel_path: str) -> str:
-    path = repo_root / rel_path
-
-    if not path.exists() or not path.is_file():
-        return ""
-
-    # Skip obvious binary extensions
-    binary_ext = {
-        ".xlsx", ".xls", ".xlsm",
-        ".png", ".jpg", ".jpeg", ".gif",
-        ".pdf", ".zip", ".tar", ".gz",
-        ".pyc", ".pyo", ".so", ".dylib",
-        ".db", ".sqlite", ".parquet"
-    }
-
-    if path.suffix.lower() in binary_ext:
-        return f"[binary file skipped: {rel_path}]"
-
-    try:
-        return path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        # Fallback for files with unexpected encoding
-        try:
-            return path.read_text(encoding="latin-1")
-        except Exception:
-            return f"[unreadable file skipped: {rel_path}]"
+    return filtered_allowed[:8]
 
 
 
@@ -285,6 +292,25 @@ def _looks_truncated_python(content: str) -> bool:
 
     return False
 
+
+def _is_generated_or_non_source_path(path: str) -> bool:
+    generated_prefixes = ("runs/",)
+    non_source_prefixes = ("data/",)
+    source_suffixes = (".py", ".md", ".yaml", ".yml", ".json", ".toml", ".sh")
+
+    if path.startswith(generated_prefixes):
+        return True
+
+    if path.startswith(non_source_prefixes):
+        return True
+
+    if not path.endswith(source_suffixes):
+        return True
+
+    return False
+
+
+
 def _validate_proposed_blocks(blocks: dict[str, str]) -> None:
     """
     Validate generated file contents before writing proposed artifacts.
@@ -325,6 +351,7 @@ class CoderRepoAwareV1(Agent):
         planned_proposed_paths = _normalize_paths(plan.get("proposed_paths", []) or [])
         validation_plan = plan.get("validation_plan", []) or []
 
+
         planned_paths = []
         for path in [*planned_selected_paths, *planned_proposed_paths]:
             if path not in planned_paths:
@@ -341,6 +368,23 @@ class CoderRepoAwareV1(Agent):
         allowed_set = set(allowed_paths)
         filtered_paths = [p for p in candidate_paths if p in allowed_set]
         rejected_paths = [p for p in candidate_paths if p not in allowed_set]
+
+        selected_paths = filtered_paths
+
+        store.write_text( "debug/prompt_debug.txt",
+                          f"slected_paths={selected_paths}\n"
+                          f"allowed_paths_counts={len(allowed_paths)}\n"
+        )
+
+        if not selected_paths:
+            raise RuntimeError("No candidate files selected from task and allowed paths.")
+
+        if any(p.startswith("runs/") for p in selected_paths):
+            raise RuntimeError(
+                f"Invalid selected_paths for coder context: {selected_paths}. "
+                "Generated files under runs/ must not be used as edit context."
+            )
+
 
         if planned_paths and not filtered_paths:
             raise ValueError(
