@@ -217,14 +217,15 @@ def _extract_explicit_targets(task: str, allowed_paths: list[str]) -> list[str]:
             parts = re.split(r",|\band\b", line)
             for part in parts:
                 p = _normalize_path_token(part)
-                if p in allowed_set and p not in targets:
+                if _is_allowed_path(p, allowed_paths) and p not in targets:
                     targets.append(p)
 
     # fallback: direct mentions anywhere in task
     if not targets:
-        for path in allowed_paths:
-            if path.endswith("/"):
-                continue
+        for token in re.findall(r"[A-Za-z0-9_./-]+", task):
+            p = _normalize_path_token(token)
+            if _is_allowed_path(p, allowed_paths) and p not in targets:
+                targets.append(p)
 
     return targets
 

@@ -96,6 +96,8 @@ def _select_candidate_files(task: str, allowed_paths: list[str]) -> list[str]:
 
     scored = []
     for path in allowed_paths:
+        if path.endswith("/"):
+            continue
         score = _score_candidate_path(path, task)
         if score > 0:
             scored.append((score, path))
@@ -105,7 +107,10 @@ def _select_candidate_files(task: str, allowed_paths: list[str]) -> list[str]:
         return [p for _, p in scored[:8]]
 
     preferred_prefixes = ("scripts/", "src/", "app/", "dashboard/", "docs/")
-    fallback = [p for p in allowed_paths if p.startswith(preferred_prefixes)]
+    fallback = [
+        p for p in allowed_paths
+        if not p.endswith("/") and p.startswith(preferred_prefixes)
+    ]
     if fallback:
         return fallback[:8]
 
