@@ -22,6 +22,19 @@ def _allowed_paths_from_json(evidence: dict[str, object]) -> list[str]:
         raise RuntimeError("DiffBuilderV1: allowed_paths.json missled allowed_paths list")
     return [str(p) for p in allowed]
 
+
+def _is_allowed_path(path: str, allowed_paths: list[str]) -> bool:
+    norm = path.strip().lstrip("./")
+    for allowed in allowed_paths:
+        allowed_norm = allowed.strip().lstrip("./")
+        if allowed_norm.endswith("/"):
+            if norm.startswith(allowed_norm):
+                return True
+        elif norm == allowed_norm:
+            return True
+    return False
+
+
 def _proposed_paths_from_evidence(evidence: dict[str, object]) -> list[str]:
     # keys like: proposed/app/engine/gates.py -> app/engine/gates.py
     out: list[str] = []
@@ -205,7 +218,7 @@ class DiffBuilderV1(Agent):
         if not allowed_paths:
             raise RuntimeError("DiffBuilderV1: no allowed paths (missing files/<path>.txt evidence).")
 
-        targets = [p for p in proposed_paths if p in allowed_paths]
+        targets = [p for p in proposed_paths if _is_allowed_path(p, allowed_paths)]
 
         if not targets:
             rel = store.write_text("changes.patch", "(no changes)\n")
