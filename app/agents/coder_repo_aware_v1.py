@@ -206,7 +206,6 @@ def _extract_explicit_targets(task: str, allowed_paths: list[str]) -> list[str]:
     Also supports simple single-line:
     Modify ONLY scripts/simulate_bracket.py and README.md.
     """
-    allowed_set = set(allowed_paths)
     targets: list[str] = []
 
     match = MODIFY_ONLY_RE.search(task)
@@ -400,7 +399,6 @@ class CoderRepoAwareV1(Agent):
             candidate_paths = _normalize_paths(candidate_paths)
             selection_source = "auto"
 
-        allowed_set = set(allowed_paths)
         filtered_paths = [
             p for p in candidate_paths
             if _is_allowed_path(p, allowed_paths) and not p.endswith("/")]

@@ -14,13 +14,35 @@ def _allowed_paths_from_json(evidence: dict[str, object]) -> list[str]:
     raw = evidence.get("allowed_paths.json")
     if raw is None:
         raise RuntimeError("DiffBuilderV1: missing allowed_paths.json evidence.")
-    if not isinstance(raw, str):
-        raw = str(raw)
-    payload = json.loads(raw)
+
+    if isinstance(raw, dict):
+        payload = raw
+    else:
+        if not isinstance(raw, str):
+            raw = str(raw)
+
+        raw = raw.strip()
+
+        if not raw:
+            raise RuntimeError("DiffBuilderV1: allowed_paths.json evidence is empty.")
+
+        if raw.startswith("[missing evidence:"):
+            raise RuntimeError(f"DiffBuilderV1: allowed_paths.json missing: {raw}")
+
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise RuntimeError(
+                "DiffBuilderV1: allowed_paths.json evidence is not valid JSON. "
+                f"Raw value starts with: {raw[:200]!r}"
+            ) from e
+
     allowed = payload.get("allowed_paths", [])
     if not isinstance(allowed, list):
-        raise RuntimeError("DiffBuilderV1: allowed_paths.json missled allowed_paths list")
+        raise RuntimeError("DiffBuilderV1: allowed_paths.json missing allowed_paths list")
+
     return [str(p) for p in allowed]
+
 
 
 def _is_allowed_path(path: str, allowed_paths: list[str]) -> bool:
